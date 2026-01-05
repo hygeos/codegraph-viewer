@@ -10,9 +10,16 @@ export default class GexfParser {
       const id = node.getAttribute("id");
       const label = node.getAttribute("label");
       const color = node.getAttribute("color") || "#666";
+      const file = node.getAttribute("file") || "";
+      const line = node.getAttribute("line") || "";
+      
+      console.log('Parsing node:', id, 'file:', file); // Debug log
+      
       graph.addNode(id, { 
         label, 
         color,
+        file,
+        line,
         x: Math.random(),
         y: Math.random(),
         size: 5

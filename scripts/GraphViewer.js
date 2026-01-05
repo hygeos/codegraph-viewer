@@ -4,16 +4,18 @@ export default class GraphViewer {
   constructor() {
     this.renderer = null;
     this.camera = null;
+    this.graph = null;
   }
 
   async initialize() {
     try {
       const gexf = await this.loadGexfFile("./data/graph.gexf");
-      const graph = GexfParser.parse(gexf);
+      this.graph = GexfParser.parse(gexf);
       
-      this.applyForceLayout(graph, 200);
-      this.setupSigma(graph);
+      this.applyForceLayout(this.graph, 200);
+      this.setupSigma(this.graph);
       this.bindControls();
+      this.bindHoverEvents();
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
     }
@@ -175,5 +177,42 @@ export default class GraphViewer {
     if (this.renderer) {
       labelsThresholdRange.value = this.renderer.getSetting("labelRenderedSizeThreshold") + "";
     }
+  }
+
+  bindHoverEvents() {
+    const tooltip = document.getElementById('tooltip');
+    
+    this.renderer.on('enterNode', ({ node }) => {
+      const attrs = this.graph.getNodeAttributes(node);
+      const inDegree = this.graph.inDegree(node);
+      const outDegree = this.graph.outDegree(node);
+      
+      console.log('Node hover:', node, 'attrs:', attrs); // Debug log
+      
+      let content = `<strong>${attrs.label || node}</strong><br>`;
+      if (attrs.file) {
+        content += `File: ${attrs.file}`;
+        if (attrs.line) {
+          content += ` (line ${attrs.line})`;
+        }
+        content += '<br>';
+      }
+      content += `Incoming edges: ${inDegree}<br>`;
+      content += `Outgoing edges: ${outDegree}`;
+      
+      tooltip.innerHTML = content;
+      tooltip.style.display = 'block';
+    });
+    
+    this.renderer.on('leaveNode', () => {
+      tooltip.style.display = 'none';
+    });
+    
+    this.renderer.getMouseCaptor().on('mousemove', (e) => {
+      if (tooltip.style.display === 'block') {
+        tooltip.style.left = e.x + 10 + 'px';
+        tooltip.style.top = e.y + 10 + 'px';
+      }
+    });
   }
 }
