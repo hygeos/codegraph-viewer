@@ -3,14 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <title>GEXF Graph Viewer</title>
+    <link rel="stylesheet" href="styles/main.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
-    <style>
-      body { margin: 0; padding: 20px; background: #f0f0f0; font-family: sans-serif; }
-      #sigma-container { width: 100%; height: 90vh; background: white; }
-      .controls { margin-bottom: 10px; }
-      button { margin-right: 10px; padding: 8px 16px; }
-    </style>
+    <script src="scripts/GexfParser.js" type="module"></script>
+    <script src="scripts/GraphViewer.js" type="module"></script>
   </head>
   <body>
     <div class="controls">
@@ -21,83 +18,11 @@
     </div>
     <div id="sigma-container"></div>
     
-    <script>
-      // Simple GEXF parser
-      function parseGEXF(gexfString) {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(gexfString, "text/xml");
-        const graph = new graphology.Graph({ multi: true });
-
-        // Parse nodes
-        const nodes = xmlDoc.querySelectorAll("node");
-        nodes.forEach(node => {
-          const id = node.getAttribute("id");
-          const label = node.getAttribute("label");
-          const color = node.getAttribute("color") || "#666";
-          graph.addNode(id, { 
-            label, 
-            color,
-            x: Math.random(),
-            y: Math.random(),
-            size: 5
-          });
-        });
-
-        // Parse edges
-        const edges = xmlDoc.querySelectorAll("edge");
-        edges.forEach(edge => {
-          const source = edge.getAttribute("source");
-          const target = edge.getAttribute("target");
-          if (graph.hasNode(source) && graph.hasNode(target)) {
-            graph.addEdge(source, target);
-          }
-        });
-
-        return graph;
-      }
-
-      let renderer = null;
-
-      // Load external GEXF file:
-      fetch("./graph.gexf")
-        .then((res) => res.text())
-        .then((gexf) => {
-          // Parse GEXF string:
-          const graph = parseGEXF(gexf);
-
-          // Retrieve DOM elements:
-          const container = document.getElementById("sigma-container");
-          const zoomInBtn = document.getElementById("zoom-in");
-          const zoomOutBtn = document.getElementById("zoom-out");
-          const zoomResetBtn = document.getElementById("zoom-reset");
-          const labelsThresholdRange = document.getElementById("labels-threshold");
-
-          // Instantiate sigma:
-          renderer = new Sigma(graph, container, {
-            minCameraRatio: 0.08,
-            maxCameraRatio: 3,
-          });
-          const camera = renderer.getCamera();
-
-          // Bind zoom manipulation buttons
-          zoomInBtn.addEventListener("click", () => {
-            camera.animatedZoom({ duration: 600 });
-          });
-          zoomOutBtn.addEventListener("click", () => {
-            camera.animatedUnzoom({ duration: 600 });
-          });
-          zoomResetBtn.addEventListener("click", () => {
-            camera.animatedReset({ duration: 600 });
-          });
-
-          // Bind labels threshold to range input
-          labelsThresholdRange.addEventListener("input", () => {
-            renderer?.setSetting("labelRenderedSizeThreshold", +labelsThresholdRange.value);
-          });
-
-          // Set proper range initial value:
-          labelsThresholdRange.value = renderer.getSetting("labelRenderedSizeThreshold") + "";
-        });
+    <script type="module">
+      import GraphViewer from './scripts/GraphViewer.js';
+      
+      const viewer = new GraphViewer();
+      viewer.initialize();
     </script>
   </body>
 </html>
