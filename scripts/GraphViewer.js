@@ -18,7 +18,7 @@ export default class GraphViewer {
       this.bindHoverEvents();
       
       // Apply force layout with live updates
-      await this.applyForceLayout(this.graph, 2000);
+      await this.applyForceLayout(this.graph, 600);
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
     }
@@ -39,18 +39,23 @@ export default class GraphViewer {
       velocities[node] = { x: 0, y: 0 };
     });
 
-    const k = 5; // Target edge length
-    const c_rep = 2500; // Repulsion constant
-    const c_spring = 0.07; // Spring constant
-    const maxRepulsionDist = 100; // Only calculate repulsion within this distance
-    const refreshRate = 1; // Refresh every 10 iterations
+    const k = 7; // Target edge length
+    const c_rep_max = 10000; // Repulsion constant maximum
+    const c_rep_min = 50;   // Repulsion constant minimum
+    
+    const c_spring = 0.099;       // Spring constant
+    const maxRepulsionDist = 250; // Only calculate repulsion within this distance
+    const refreshRate = 2;       // Refresh every 10 iterations
+    
+    const c_rep_itr_at_min = 10;
+    const c_rep_max_itr =  Math.floor(iterations / 4) * 1;
     
     for (let iter = 0; iter < iterations; iter++) {
       if (counter) {
         counter.textContent = `Layout: ${iter}/${iterations}`;
       }
       
-      // Update rendering every 10 iterations
+      // Update rendering every Nth iterations
       if (iter % refreshRate === 0) {
         // Apply current positions to graph
         nodes.forEach(node => {
@@ -79,10 +84,21 @@ export default class GraphViewer {
           const node2 = nodes[j];
           const dx = positions[node2].x - positions[node1].x;
           const dy = positions[node2].y - positions[node1].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+          const dist = Math.sqrt(dx * dx + dy * dy); // || 0.1;
           
           // Skip distant nodes for performance
           if (dist > maxRepulsionDist) continue;
+          
+          // Repulsion gradually increases from min to max between c_rep_itr_at_min and c_rep_max_itr
+          let c_rep;
+          if (iter < c_rep_itr_at_min) {
+            c_rep = c_rep_min;
+          } else if (iter <= c_rep_max_itr) {
+            c_rep = c_rep_max;
+          } else {
+            const progress = (iter - c_rep_itr_at_min) / (c_rep_max_itr - c_rep_itr_at_min);
+            c_rep = c_rep_min + (c_rep_max - c_rep_min) * progress;
+          }
           
           const force = c_rep / (dist * dist);
           
@@ -97,7 +113,7 @@ export default class GraphViewer {
       graph.forEachEdge((edge, attrs, source, target) => {
         const dx = positions[target].x - positions[source].x;
         const dy = positions[target].y - positions[source].y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.2;
         const force = c_spring * (dist - k);
         
         forces[source].x += (dx / dist) * force;
@@ -109,43 +125,25 @@ export default class GraphViewer {
       // Update positions with damping and velocity limiting
       const damping = 0.9;
       const timeStep = 0.3;
-      const maxVelocity = 5; // Limit velocity to prevent explosion
+      const max_velocity = 20; // Limit velocity to prevent explosion
+      const min_velocity = 5; // reach min_velocity at last iteration
       
       nodes.forEach(node => {
+        
+        const curr_max_velocity = max_velocity - ((max_velocity - min_velocity) * (iter / iterations));
+        
         velocities[node].x = (velocities[node].x + forces[node].x * timeStep) * damping;
         velocities[node].y = (velocities[node].y + forces[node].y * timeStep) * damping;
         
         // Clamp velocities
-        velocities[node].x = Math.max(-maxVelocity, Math.min(maxVelocity, velocities[node].x));
-        velocities[node].y = Math.max(-maxVelocity, Math.min(maxVelocity, velocities[node].y));
+        velocities[node].x = Math.max(-curr_max_velocity, Math.min(curr_max_velocity, velocities[node].x));
+        velocities[node].y = Math.max(-curr_max_velocity, Math.min(curr_max_velocity, velocities[node].y));
         
         positions[node].x += velocities[node].x;
         positions[node].y += velocities[node].y;
       });
     }
 
-    // Normalize positions to 0-1 range for Sigma.js
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    
-    nodes.forEach(node => {
-      minX = Math.min(minX, positions[node].x);
-      maxX = Math.max(maxX, positions[node].x);
-      minY = Math.min(minY, positions[node].y);
-      maxY = Math.max(maxY, positions[node].y);
-    });
-    
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-    
-    // Apply normalized positions to graph (map to 0-1 range)
-    nodes.forEach(node => {
-      const normalizedX = (positions[node].x - minX) / rangeX;
-      const normalizedY = (positions[node].y - minY) / rangeY;
-      graph.setNodeAttribute(node, 'x', normalizedX);
-      graph.setNodeAttribute(node, 'y', normalizedY);
-    });
-    
     if (counter) {
       counter.textContent = `Layout complete (${iterations} iterations)`;
     }
@@ -162,6 +160,11 @@ export default class GraphViewer {
     this.renderer = new Sigma(graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
+    //   renderEdgeLabels: false,
+    //   defaultEdgeType: "arrow",
+    //   edgeProgramClasses: {
+        // arrow: Sigma.edgePrograms.arrow
+    //   }
     });
     
     this.camera = this.renderer.getCamera();
