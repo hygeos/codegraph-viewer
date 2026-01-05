@@ -5,6 +5,7 @@ export default class GraphViewer {
     this.renderer = null;
     this.camera = null;
     this.graph = null;
+    this.layoutRunning = false;
   }
 
   async initialize() {
@@ -12,23 +13,56 @@ export default class GraphViewer {
       const gexf = await this.loadGexfFile("./data/graph.gexf");
       this.graph = GexfParser.parse(gexf);
       
+      // Initialize nodes with random positions
+      this.initializeNodePositions();
+      
       // Setup Sigma first so we can render during layout
       this.setupSigma(this.graph);
       this.bindControls();
       this.bindHoverEvents();
-      
-      // Apply force layout with live updates
-      await this.applyForceLayout(this.graph, 600);
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
     }
   }
 
+  initializeNodePositions() {
+    const nodes = this.graph.nodes();
+    nodes.forEach(node => {
+      this.graph.setNodeAttribute(node, 'x', Math.random() * 200 - 100);
+      this.graph.setNodeAttribute(node, 'y', Math.random() * 200 - 100);
+    });
+  }
+
+  removeIsolatedNodes(graph) {
+    const nodesToRemove = [];
+    graph.forEachNode((node) => {
+      if (graph.degree(node) === 0) {
+        nodesToRemove.push(node);
+      }
+    });
+    nodesToRemove.forEach(node => graph.dropNode(node));
+    return nodesToRemove.length;
+  }
+
   async applyForceLayout(graph, iterations = 100) {
+    this.layoutRunning = true;
+    const startBtn = document.getElementById('start-layout');
+    const counter = document.getElementById('iteration-counter');
+    if (startBtn) startBtn.textContent = 'Stop';
+    
+    // Check if we should remove isolated nodes
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+    if (removeIsolatedCheckbox && removeIsolatedCheckbox.checked) {
+      const removed = this.removeIsolatedNodes(graph);
+      if (counter && removed > 0) {
+        counter.textContent = `Removed ${removed} isolated node${removed > 1 ? 's' : ''}`;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
     const nodes = graph.nodes();
     const positions = {};
     const velocities = {};
-    const counter = document.getElementById('iteration-counter');
     
     // Initialize positions and velocities within a bounded area
     nodes.forEach(node => {
@@ -45,14 +79,21 @@ export default class GraphViewer {
     
     const c_spring = 0.099;       // Spring constant
     const maxRepulsionDist = 250; // Only calculate repulsion within this distance
-    const refreshRate = 2;       // Refresh every 10 iterations
+    const refreshRate = 1;       // Refresh every 10 iterations
     
     const c_rep_itr_at_min = 10;
     const c_rep_max_itr =  Math.floor(iterations / 4) * 1;
     
     for (let iter = 0; iter < iterations; iter++) {
+      // Check if layout was stopped
+      if (!this.layoutRunning) {
+        if (counter) counter.textContent = 'Stopped';
+        if (startBtn) startBtn.textContent = 'Start';
+        return;
+      }
+      
       if (counter) {
-        counter.textContent = `Layout: ${iter}/${iterations}`;
+        counter.textContent = `Running: ${iter}/${iterations}`;
       }
       
       // Update rendering every Nth iterations
@@ -144,9 +185,11 @@ export default class GraphViewer {
       });
     }
 
+    this.layoutRunning = false;
     if (counter) {
-      counter.textContent = `Layout complete (${iterations} iterations)`;
+      counter.textContent = `Completed ${iterations} itr`;
     }
+    if (startBtn) startBtn.textContent = 'Start';
   }
 
   async loadGexfFile(url) {
@@ -171,10 +214,22 @@ export default class GraphViewer {
   }
 
   bindControls() {
+    const startBtn = document.getElementById("start-layout");
+    const maxIterationsInput = document.getElementById("max-iterations");
     const zoomInBtn = document.getElementById("zoom-in");
     const zoomOutBtn = document.getElementById("zoom-out");
     const zoomResetBtn = document.getElementById("zoom-reset");
-    const labelsThresholdRange = document.getElementById("labels-threshold");
+
+    startBtn.addEventListener("click", async () => {
+      if (this.layoutRunning) {
+        // Stop the layout
+        this.layoutRunning = false;
+      } else {
+        // Start/restart the layout
+        const iterations = parseInt(maxIterationsInput.value) || 600;
+        await this.applyForceLayout(this.graph, iterations);
+      }
+    });
 
     zoomInBtn.addEventListener("click", () => {
       this.camera.animatedZoom({ duration: 600 });
@@ -187,16 +242,6 @@ export default class GraphViewer {
     zoomResetBtn.addEventListener("click", () => {
       this.camera.animatedReset({ duration: 600 });
     });
-
-    labelsThresholdRange.addEventListener("input", () => {
-      if (this.renderer) {
-        this.renderer.setSetting("labelRenderedSizeThreshold", +labelsThresholdRange.value);
-      }
-    });
-
-    if (this.renderer) {
-      labelsThresholdRange.value = this.renderer.getSetting("labelRenderedSizeThreshold") + "";
-    }
   }
 
   bindHoverEvents() {

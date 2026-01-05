@@ -11,11 +11,13 @@
   </head>
   <body>
     <div class="controls">
-      <span id="iteration-counter">Calculating layout...</span>
+      <button id="start-layout">Start</button>
+      <label>Max Itr: <input type="number" id="max-iterations" min="10" max="5000" step="10" value="600" /></label>
+      <label><input type="checkbox" id="remove-isolated" /> Remove isolated nodes</label>
       <button id="zoom-in">Zoom In</button>
       <button id="zoom-out">Zoom Out</button>
       <button id="zoom-reset">Reset Zoom</button>
-      <label>Labels: <input type="range" id="labels-threshold" min="0" max="15" step="0.5" /></label>
+      <span id="iteration-counter">Ready</span>
     </div>
     <div id="tooltip" style="display: none; position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; pointer-events: none; z-index: 1000; font-size: 12px; max-width: 300px; word-wrap: break-word;"></div>
     <div id="sigma-container"></div>
