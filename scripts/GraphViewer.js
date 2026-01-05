@@ -12,10 +12,13 @@ export default class GraphViewer {
       const gexf = await this.loadGexfFile("./data/graph.gexf");
       this.graph = GexfParser.parse(gexf);
       
-      this.applyForceLayout(this.graph, 200);
+      // Setup Sigma first so we can render during layout
       this.setupSigma(this.graph);
       this.bindControls();
       this.bindHoverEvents();
+      
+      // Apply force layout with live updates
+      await this.applyForceLayout(this.graph, 2000);
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
     }
@@ -37,17 +40,31 @@ export default class GraphViewer {
     });
 
     const k = 5; // Target edge length
-    const c_rep = 2000; // Repulsion constant
-    const c_spring = 0.05; // Spring constant
+    const c_rep = 2500; // Repulsion constant
+    const c_spring = 0.07; // Spring constant
     const maxRepulsionDist = 100; // Only calculate repulsion within this distance
-
+    const refreshRate = 1; // Refresh every 10 iterations
+    
     for (let iter = 0; iter < iterations; iter++) {
       if (counter) {
         counter.textContent = `Layout: ${iter}/${iterations}`;
-        if (iter % 5 === 0) {
-          // Allow UI to update more frequently
-          await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      
+      // Update rendering every 10 iterations
+      if (iter % refreshRate === 0) {
+        // Apply current positions to graph
+        nodes.forEach(node => {
+          graph.setNodeAttribute(node, 'x', positions[node].x);
+          graph.setNodeAttribute(node, 'y', positions[node].y);
+        });
+        
+        // Refresh the renderer
+        if (this.renderer) {
+          this.renderer.refresh();
         }
+        
+        // Allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
       
       const forces = {};
