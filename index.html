@@ -11,13 +11,15 @@
   </head>
   <body>
     <div class="controls">
+      <button id="load-file">Load New File</button>
+      <input type="file" id="file-input" accept=".gexf" style="display: none;" />
       <button id="start-layout">Start</button>
       <label>Max Itr: <input type="number" id="max-iterations" min="10" max="5000" step="10" value="600" /></label>
       <label><input type="checkbox" id="remove-isolated" /> Remove isolated nodes</label>
       <button id="zoom-in">Zoom In</button>
       <button id="zoom-out">Zoom Out</button>
       <button id="zoom-reset">Reset Zoom</button>
-      <span id="iteration-counter">Ready</span>
+      <span id="iteration-counter">No file loaded</span>
     </div>
     <div id="tooltip" style="display: none; position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 8px 12px; border-radius: 4px; pointer-events: none; z-index: 1000; font-size: 12px; max-width: 300px; word-wrap: break-word;"></div>
     <div id="sigma-container"></div>
@@ -26,7 +28,7 @@
       import GraphViewer from './scripts/GraphViewer.js';
       
       const viewer = new GraphViewer();
-      viewer.initialize();
+      // Don't auto-load - wait for user to select a file
     </script>
   </body>
 </html>

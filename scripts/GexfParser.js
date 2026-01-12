@@ -22,7 +22,7 @@ export default class GexfParser {
         line,
         x: Math.random(),
         y: Math.random(),
-        size: 5
+        size: 4
       });
     });
 

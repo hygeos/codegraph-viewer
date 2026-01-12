@@ -5,23 +5,69 @@ export default class GraphViewer {
     this.renderer = null;
     this.camera = null;
     this.graph = null;
+    this.originalGraph = null; // Backup of the original graph
     this.layoutRunning = false;
+    this.isInitialized = false;
+    
+    // Bind file selector immediately
+    this.bindFileSelector();
   }
 
-  async initialize() {
+  cleanState() {
+    // Stop any running layout
+    this.layoutRunning = false;
+    
+    // Destroy existing renderer
+    if (this.renderer) {
+      this.renderer.kill();
+      this.renderer = null;
+    }
+    
+    // Clear graph
+    this.graph = null;
+    this.originalGraph = null;
+    this.camera = null;
+    
+    // Update UI
+    const counter = document.getElementById('iteration-counter');
+    if (counter) counter.textContent = 'Loading...';
+    const startBtn = document.getElementById('start-layout');
+    if (startBtn) startBtn.textContent = 'Start';
+  }
+
+  async initialize(gexfContent) {
     try {
-      const gexf = await this.loadGexfFile("./data/graph.gexf");
-      this.graph = GexfParser.parse(gexf);
+      // Clean up previous state if reloading
+      if (this.isInitialized) {
+        this.cleanState();
+      }
+      
+      this.graph = GexfParser.parse(gexfContent);
+      
+      // Store a copy of the original graph
+      this.originalGraph = this.graph.copy();
       
       // Initialize nodes with random positions
       this.initializeNodePositions();
       
       // Setup Sigma first so we can render during layout
       this.setupSigma(this.graph);
-      this.bindControls();
+      
+      if (!this.isInitialized) {
+        this.bindControls();
+        this.isInitialized = true;
+      }
+      
       this.bindHoverEvents();
+      
+      // Update UI to show ready state
+      const counter = document.getElementById('iteration-counter');
+      if (counter) counter.textContent = 'Ready';
+      
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
+      const counter = document.getElementById('iteration-counter');
+      if (counter) counter.textContent = 'Error loading file';
     }
   }
 
@@ -197,12 +243,44 @@ export default class GraphViewer {
     return await response.text();
   }
 
+  bindFileSelector() {
+    const loadBtn = document.getElementById('load-file');
+    const fileInput = document.getElementById('file-input');
+    
+    if (!loadBtn || !fileInput) {
+      console.error('File selector elements not found');
+      return;
+    }
+    
+    loadBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        const content = await file.text();
+        await this.initialize(content);
+      } catch (error) {
+        console.error('Failed to load file:', error);
+        const counter = document.getElementById('iteration-counter');
+        if (counter) counter.textContent = 'Error loading file';
+      }
+      
+      // Reset file input so the same file can be loaded again
+      fileInput.value = '';
+    });
+  }
+
   setupSigma(graph) {
     const container = document.getElementById("sigma-container");
     
     this.renderer = new Sigma(graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
+      defaultEdgeColor: "#858585ff",  // Add this line - use any hex color
     //   renderEdgeLabels: false,
     //   defaultEdgeType: "arrow",
     //   edgeProgramClasses: {
@@ -219,6 +297,7 @@ export default class GraphViewer {
     const zoomInBtn = document.getElementById("zoom-in");
     const zoomOutBtn = document.getElementById("zoom-out");
     const zoomResetBtn = document.getElementById("zoom-reset");
+    const removeIsolatedCheckbox = document.getElementById("remove-isolated");
 
     startBtn.addEventListener("click", async () => {
       if (this.layoutRunning) {
@@ -241,6 +320,23 @@ export default class GraphViewer {
     
     zoomResetBtn.addEventListener("click", () => {
       this.camera.animatedReset({ duration: 600 });
+    });
+    
+    removeIsolatedCheckbox.addEventListener("change", () => {
+      if (!removeIsolatedCheckbox.checked && this.originalGraph) {
+        // Restore the original graph
+        this.graph.clear();
+        this.originalGraph.forEachNode((node, attrs) => {
+          this.graph.addNode(node, { ...attrs });
+        });
+        this.originalGraph.forEachEdge((edge, attrs, source, target) => {
+          this.graph.addEdge(source, target, { ...attrs });
+        });
+        this.renderer.refresh();
+        
+        const counter = document.getElementById('iteration-counter');
+        if (counter) counter.textContent = 'Isolated nodes restored';
+      }
     });
   }
 
