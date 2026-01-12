@@ -19,25 +19,18 @@ class GraphViewer {
   }
 
   cleanState() {
-    // Stop any running layout
     this.layoutRunning = false;
     
-    // Destroy existing renderer
     if (this.renderer) {
       this.renderer.kill();
       this.renderer = null;
     }
     
-    // Clear graph
     this.graph = null;
     this.originalGraph = null;
     this.camera = null;
     
-    // Update UI
-    const counter = document.getElementById('iteration-counter');
-    if (counter) counter.textContent = 'Loading...';
-    const startBtn = document.getElementById('start-layout');
-    if (startBtn) startBtn.textContent = 'Start';
+    this.updateUI('Loading...', 'Start');
   }
 
   async initialize(gexfContent) {
@@ -65,14 +58,11 @@ class GraphViewer {
       
       this.bindHoverEvents();
       
-      // Update UI to show ready state
-      const counter = document.getElementById('iteration-counter');
-      if (counter) counter.textContent = 'Ready';
+      this.updateUI('Ready');
       
     } catch (error) {
       console.error('Failed to initialize graph viewer:', error);
-      const counter = document.getElementById('iteration-counter');
-      if (counter) counter.textContent = 'Error loading file';
+      this.updateUI('Error loading file');
     }
   }
 
@@ -245,74 +235,42 @@ class GraphViewer {
 
   bindThemeToggle() {
     const themeToggle = document.getElementById('theme-toggle');
+    if (!themeToggle) return;
     
-    if (!themeToggle) {
-      console.error('Theme toggle button not found');
-      return;
-    }
-    
-    // Apply the theme that was loaded in constructor
-    if (this.isDarkMode) {
-      document.body.classList.add('dark-mode');
-      themeToggle.textContent = '☀️';
-    }
+    this.applyTheme();
     
     themeToggle.addEventListener('click', () => {
       this.isDarkMode = !this.isDarkMode;
-      document.body.classList.toggle('dark-mode');
-      
-      // Update button icon
-      themeToggle.textContent = this.isDarkMode ? '☀️' : '🌙';
-      
-      // Save preference
       localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+      this.applyTheme();
       
-      // Update renderer edge colors if graph is loaded
       if (this.renderer && this.graph) {
         this.updateRendererTheme();
       }
     });
   }
   
+  applyTheme() {
+    document.body.classList.toggle('dark-mode', this.isDarkMode);
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.textContent = this.isDarkMode ? '☀️' : '🌙';
+    }
+  }
+  
   updateRendererTheme() {
-    // Recreate the renderer with new theme colors
-    const container = document.getElementById("sigma-container");
     const cameraState = this.camera.getState();
-    
     this.renderer.kill();
     
-    // const edgeColor = this.isDarkMode ? "#313131ff" : "#cccccc";
-    const edgeColor = this.isDarkMode ? "#b41c1cff" : "#16c049ff";
-    
-    const labelColorValue = this.isDarkMode ? "#e0e0e0" : "#000000";
-    
-    // Set edge colors explicitly on all edges
-    this.graph.forEachEdge((edge) => {
-      this.graph.setEdgeAttribute(edge, 'color', edgeColor);
-    });
-    
-    this.renderer = new Sigma(this.graph, container, {
-      minCameraRatio: 0.08,
-      maxCameraRatio: 3,
-      defaultEdgeColor: edgeColor,
-      labelColor: { color: labelColorValue },
-    });
-    
-    this.camera = this.renderer.getCamera();
+    this.setupSigma(this.graph);
     this.camera.setState(cameraState);
-    
-    // Rebind hover events
     this.bindHoverEvents();
   }
 
   bindFileSelector() {
     const loadBtn = document.getElementById('load-file');
     const fileInput = document.getElementById('file-input');
-    
-    if (!loadBtn || !fileInput) {
-      console.error('File selector elements not found');
-      return;
-    }
+    if (!loadBtn || !fileInput) return;
     
     loadBtn.addEventListener('click', () => {
       fileInput.click();
@@ -327,13 +285,11 @@ class GraphViewer {
         const content = await file.text();
         await this.initialize(content);
         
-        // Display filename
         const filenameDisplay = document.getElementById('filename-display');
         if (filenameDisplay) filenameDisplay.textContent = file.name;
       } catch (error) {
         console.error('Failed to load file:', error);
-        const counter = document.getElementById('iteration-counter');
-        if (counter) counter.textContent = 'Error loading file';
+        this.updateUI('Error loading file');
       }
       
       // Reset file input so the same file can be loaded again
@@ -343,31 +299,14 @@ class GraphViewer {
 
   setupSigma(graph) {
     const container = document.getElementById("sigma-container");
-    
-    // const edgeColor = this.isDarkMode ? "#313131ff" : "#cccccc";
-    const edgeColor = this.isDarkMode ? "#3f3f3fff" : "#b8b0b0ff";
-    const labelColorValue = this.isDarkMode ? "#e0e0e0" : "#000000";
-    
-    console.log('setupSigma - isDarkMode:', this.isDarkMode, 'edgeColor:', edgeColor);
-    console.log('Number of edges:', graph.edges().length);
-    
-    // Set edge colors explicitly on all edges
-    // graph.forEachEdge((edge) => {
-    //   graph.setEdgeAttribute(edge, 'color', edgeColor);
-    // });
-    
-    console.log('Sample edge color after setting:', graph.edges().length > 0 ? graph.getEdgeAttribute(graph.edges()[0], 'color') : 'no edges');
+    const edgeColor = this.isDarkMode ? "#3f3f3fff" : "#d4d4d4ff";
+    const labelColor = this.isDarkMode ? "#e0e0e0" : "#000000";
     
     this.renderer = new Sigma(graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
       defaultEdgeColor: edgeColor,
-      labelColor: { color: labelColorValue },
-    //   renderEdgeLabels: false,
-    //   defaultEdgeType: "arrow",
-    //   edgeProgramClasses: {
-        // arrow: Sigma.edgePrograms.arrow
-    //   }
+      labelColor: { color: labelColor },
     });
     
     this.camera = this.renderer.getCamera();
@@ -376,14 +315,9 @@ class GraphViewer {
   bindStartButton() {
     const startBtn = document.getElementById("start-layout");
     const maxIterationsInput = document.getElementById("max-iterations");
-    
-    if (!startBtn) {
-      console.error('Start button not found');
-      return;
-    }
+    if (!startBtn) return;
 
     startBtn.addEventListener("click", async () => {
-      // If no file is loaded, trigger file selection
       if (!this.graph) {
         const fileInput = document.getElementById('file-input');
         if (fileInput) fileInput.click();
@@ -391,10 +325,8 @@ class GraphViewer {
       }
       
       if (this.layoutRunning) {
-        // Stop the layout
         this.layoutRunning = false;
       } else {
-        // Start/restart the layout
         const iterations = parseInt(maxIterationsInput.value) || 600;
         await this.applyForceLayout(this.graph, iterations);
       }
@@ -472,5 +404,13 @@ class GraphViewer {
         tooltip.style.top = e.y + 10 + 'px';
       }
     });
+  }
+  
+  updateUI(counterText, buttonText) {
+    const counter = document.getElementById('iteration-counter');
+    if (counter && counterText) counter.textContent = counterText;
+    
+    const startBtn = document.getElementById('start-layout');
+    if (startBtn && buttonText) startBtn.textContent = buttonText;
   }
 }
