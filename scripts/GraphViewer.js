@@ -120,10 +120,10 @@ export default class GraphViewer {
     });
 
     const k = 7; // Target edge length
-    const c_rep_max = 10000; // Repulsion constant maximum
+    const c_rep_max = 1500; // Repulsion constant maximum
     const c_rep_min = 50;   // Repulsion constant minimum
     
-    const c_spring = 0.099;       // Spring constant
+    const c_spring = 0.075;       // Spring constant
     const maxRepulsionDist = 250; // Only calculate repulsion within this distance
     const refreshRate = 1;       // Refresh every 10 iterations
     
