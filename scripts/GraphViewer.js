@@ -8,9 +8,11 @@ export default class GraphViewer {
     this.originalGraph = null; // Backup of the original graph
     this.layoutRunning = false;
     this.isInitialized = false;
+    this.isDarkMode = false;
     
-    // Bind file selector immediately
+    // Bind file selector and theme toggle immediately
     this.bindFileSelector();
+    this.bindThemeToggle();
   }
 
   cleanState() {
@@ -119,7 +121,7 @@ export default class GraphViewer {
       velocities[node] = { x: 0, y: 0 };
     });
 
-    const k = 7; // Target edge length
+    const k = 8; // Target edge length
     const c_rep_max = 1500; // Repulsion constant maximum
     const c_rep_min = 50;   // Repulsion constant minimum
     
@@ -243,6 +245,60 @@ export default class GraphViewer {
     return await response.text();
   }
 
+  bindThemeToggle() {
+    const themeToggle = document.getElementById('theme-toggle');
+    
+    if (!themeToggle) {
+      console.error('Theme toggle button not found');
+      return;
+    }
+    
+    // Load saved theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      this.isDarkMode = true;
+      document.body.classList.add('dark-mode');
+      themeToggle.textContent = '☀️';
+    }
+    
+    themeToggle.addEventListener('click', () => {
+      this.isDarkMode = !this.isDarkMode;
+      document.body.classList.toggle('dark-mode');
+      
+      // Update button icon
+      themeToggle.textContent = this.isDarkMode ? '☀️' : '🌙';
+      
+      // Save preference
+      localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+      
+      // Update renderer edge colors if graph is loaded
+      if (this.renderer && this.graph) {
+        this.updateRendererTheme();
+      }
+    });
+  }
+  
+  updateRendererTheme() {
+    // Recreate the renderer with new theme colors
+    const container = document.getElementById("sigma-container");
+    const cameraState = this.camera.getState();
+    
+    this.renderer.kill();
+    
+    this.renderer = new Sigma(this.graph, container, {
+      minCameraRatio: 0.08,
+      maxCameraRatio: 3,
+      defaultEdgeColor: this.isDarkMode ? "#666666" : "#858585",
+      labelColor: { color: this.isDarkMode ? "#e0e0e0" : "#000000" },
+    });
+    
+    this.camera = this.renderer.getCamera();
+    this.camera.setState(cameraState);
+    
+    // Rebind hover events
+    this.bindHoverEvents();
+  }
+
   bindFileSelector() {
     const loadBtn = document.getElementById('load-file');
     const fileInput = document.getElementById('file-input');
@@ -280,7 +336,8 @@ export default class GraphViewer {
     this.renderer = new Sigma(graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
-      defaultEdgeColor: "#858585ff",  // Add this line - use any hex color
+      defaultEdgeColor: this.isDarkMode ? "#666666" : "#858585",
+      labelColor: { color: this.isDarkMode ? "#e0e0e0" : "#000000" },
     //   renderEdgeLabels: false,
     //   defaultEdgeType: "arrow",
     //   edgeProgramClasses: {
