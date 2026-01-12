@@ -1,6 +1,6 @@
 :root {
   --bg-primary: #f0f0f0;
-  --bg-secondary: #ffffff;
+  --bg-secondary: #ebebeb;
   --text-primary: #000000;
   --text-secondary: #333333;
   --control-bg: #e0e0e0;
@@ -14,8 +14,8 @@
 }
 
 body.dark-mode {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #2a2a2a;
+  --bg-primary: #222222;
+  --bg-secondary: #0c0c0c;
   --text-primary: #e0e0e0;
   --text-secondary: #b0b0b0;
   --control-bg: #333333;

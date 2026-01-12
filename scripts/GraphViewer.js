@@ -1,6 +1,4 @@
-import GexfParser from './GexfParser.js';
-
-export default class GraphViewer {
+class GraphViewer {
   constructor() {
     this.renderer = null;
     this.camera = null;
@@ -8,11 +6,16 @@ export default class GraphViewer {
     this.originalGraph = null; // Backup of the original graph
     this.layoutRunning = false;
     this.isInitialized = false;
-    this.isDarkMode = false;
+    this.loadedFilename = null;
+    
+    // Load theme preference FIRST before anything else, default to dark
+    const savedTheme = localStorage.getItem('theme');
+    this.isDarkMode = savedTheme ? savedTheme === 'dark' : true;
     
     // Bind file selector and theme toggle immediately
     this.bindFileSelector();
     this.bindThemeToggle();
+    this.bindStartButton();
   }
 
   cleanState() {
@@ -240,11 +243,6 @@ export default class GraphViewer {
     if (startBtn) startBtn.textContent = 'Start';
   }
 
-  async loadGexfFile(url) {
-    const response = await fetch(url);
-    return await response.text();
-  }
-
   bindThemeToggle() {
     const themeToggle = document.getElementById('theme-toggle');
     
@@ -253,10 +251,8 @@ export default class GraphViewer {
       return;
     }
     
-    // Load saved theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      this.isDarkMode = true;
+    // Apply the theme that was loaded in constructor
+    if (this.isDarkMode) {
       document.body.classList.add('dark-mode');
       themeToggle.textContent = '☀️';
     }
@@ -285,11 +281,21 @@ export default class GraphViewer {
     
     this.renderer.kill();
     
+    // const edgeColor = this.isDarkMode ? "#313131ff" : "#cccccc";
+    const edgeColor = this.isDarkMode ? "#b41c1cff" : "#16c049ff";
+    
+    const labelColorValue = this.isDarkMode ? "#e0e0e0" : "#000000";
+    
+    // Set edge colors explicitly on all edges
+    this.graph.forEachEdge((edge) => {
+      this.graph.setEdgeAttribute(edge, 'color', edgeColor);
+    });
+    
     this.renderer = new Sigma(this.graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
-      defaultEdgeColor: this.isDarkMode ? "#666666" : "#858585",
-      labelColor: { color: this.isDarkMode ? "#e0e0e0" : "#000000" },
+      defaultEdgeColor: edgeColor,
+      labelColor: { color: labelColorValue },
     });
     
     this.camera = this.renderer.getCamera();
@@ -317,8 +323,13 @@ export default class GraphViewer {
       if (!file) return;
       
       try {
+        this.loadedFilename = file.name;
         const content = await file.text();
         await this.initialize(content);
+        
+        // Display filename
+        const filenameDisplay = document.getElementById('filename-display');
+        if (filenameDisplay) filenameDisplay.textContent = file.name;
       } catch (error) {
         console.error('Failed to load file:', error);
         const counter = document.getElementById('iteration-counter');
@@ -333,11 +344,25 @@ export default class GraphViewer {
   setupSigma(graph) {
     const container = document.getElementById("sigma-container");
     
+    // const edgeColor = this.isDarkMode ? "#313131ff" : "#cccccc";
+    const edgeColor = this.isDarkMode ? "#3f3f3fff" : "#b8b0b0ff";
+    const labelColorValue = this.isDarkMode ? "#e0e0e0" : "#000000";
+    
+    console.log('setupSigma - isDarkMode:', this.isDarkMode, 'edgeColor:', edgeColor);
+    console.log('Number of edges:', graph.edges().length);
+    
+    // Set edge colors explicitly on all edges
+    // graph.forEachEdge((edge) => {
+    //   graph.setEdgeAttribute(edge, 'color', edgeColor);
+    // });
+    
+    console.log('Sample edge color after setting:', graph.edges().length > 0 ? graph.getEdgeAttribute(graph.edges()[0], 'color') : 'no edges');
+    
     this.renderer = new Sigma(graph, container, {
       minCameraRatio: 0.08,
       maxCameraRatio: 3,
-      defaultEdgeColor: this.isDarkMode ? "#666666" : "#858585",
-      labelColor: { color: this.isDarkMode ? "#e0e0e0" : "#000000" },
+      defaultEdgeColor: edgeColor,
+      labelColor: { color: labelColorValue },
     //   renderEdgeLabels: false,
     //   defaultEdgeType: "arrow",
     //   edgeProgramClasses: {
@@ -348,15 +373,23 @@ export default class GraphViewer {
     this.camera = this.renderer.getCamera();
   }
 
-  bindControls() {
+  bindStartButton() {
     const startBtn = document.getElementById("start-layout");
     const maxIterationsInput = document.getElementById("max-iterations");
-    const zoomInBtn = document.getElementById("zoom-in");
-    const zoomOutBtn = document.getElementById("zoom-out");
-    const zoomResetBtn = document.getElementById("zoom-reset");
-    const removeIsolatedCheckbox = document.getElementById("remove-isolated");
+    
+    if (!startBtn) {
+      console.error('Start button not found');
+      return;
+    }
 
     startBtn.addEventListener("click", async () => {
+      // If no file is loaded, trigger file selection
+      if (!this.graph) {
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) fileInput.click();
+        return;
+      }
+      
       if (this.layoutRunning) {
         // Stop the layout
         this.layoutRunning = false;
@@ -366,6 +399,13 @@ export default class GraphViewer {
         await this.applyForceLayout(this.graph, iterations);
       }
     });
+  }
+
+  bindControls() {
+    const zoomInBtn = document.getElementById("zoom-in");
+    const zoomOutBtn = document.getElementById("zoom-out");
+    const zoomResetBtn = document.getElementById("zoom-reset");
+    const removeIsolatedCheckbox = document.getElementById("remove-isolated");
 
     zoomInBtn.addEventListener("click", () => {
       this.camera.animatedZoom({ duration: 600 });

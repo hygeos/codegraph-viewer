@@ -1,4 +1,4 @@
-export default class GexfParser {
+class GexfParser {
   static parse(gexfString) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(gexfString, "text/xml");
