@@ -3,7 +3,9 @@ class GraphViewer {
     this.renderer = null;
     this.camera = null;
     this.graph = null;
-    this.originalGraph = null; // Backup of the original graph
+    this.fullGraph = null; // Complete backup with ALL nodes
+    this.nodePositions = {}; // Position cache for all nodes (visible + hidden)
+    this.visibleParents = new Set(); // Set of currently visible parent names
     this.layoutRunning = false;
     this.isInitialized = false;
     this.loadedFilename = null;
@@ -33,7 +35,9 @@ class GraphViewer {
     }
     
     this.graph = null;
-    this.originalGraph = null;
+    this.fullGraph = null;
+    this.nodePositions = {};
+    this.visibleParents = new Set();
     this.camera = null;
     
     this.updateUI('Loading...', 'Start');
@@ -48,11 +52,18 @@ class GraphViewer {
       
       this.graph = GexfParser.parse(gexfContent);
       
-      // Store a copy of the original graph
-      this.originalGraph = this.graph.copy();
+      // Store a complete backup of the full graph
+      this.fullGraph = this.graph.copy();
+      
+      // Initialize all parents as visible
+      const parents = this.graph.getAttribute('parents') || [];
+      this.visibleParents = new Set(parents);
       
       // Initialize nodes with random positions
       this.initializeNodePositions();
+      
+      // Cache initial positions
+      this.cacheNodePositions();
       
       // Setup Sigma first so we can render during layout
       this.setupSigma(this.graph);
@@ -335,15 +346,9 @@ class GraphViewer {
     });
     
     removeIsolatedCheckbox.addEventListener("change", () => {
-      if (!removeIsolatedCheckbox.checked && this.originalGraph) {
-        // Restore the original graph
-        this.graph.clear();
-        this.originalGraph.forEachNode((node, attrs) => {
-          this.graph.addNode(node, { ...attrs });
-        });
-        this.originalGraph.forEachEdge((edge, attrs, source, target) => {
-          this.graph.addEdge(source, target, { ...attrs });
-        });
+      if (!removeIsolatedCheckbox.checked && this.fullGraph) {
+        // Restore from full graph with current parent filters
+        this.rebuildFilteredGraph();
         this.renderer.refresh();
         
         const counter = document.getElementById('iteration-counter');
@@ -446,7 +451,84 @@ class GraphViewer {
         this.openColorPicker(parent, color);
       });
       
+      // Add checkbox for visibility toggle
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'parent-checkbox';
+      checkbox.checked = this.visibleParents.has(parent);
+      checkbox.title = 'Toggle visibility';
+      
+      checkbox.addEventListener('change', () => {
+        this.toggleParentVisibility(parent, checkbox.checked);
+      });
+      
+      // Insert checkbox at the beginning
+      item.insertBefore(checkbox, swatch);
+      
       parentList.appendChild(item);
+    });
+  }
+  
+  toggleParentVisibility(parent, visible) {
+    if (visible) {
+      this.visibleParents.add(parent);
+    } else {
+      this.visibleParents.delete(parent);
+    }
+    
+    // Cache current positions before rebuilding
+    this.cacheNodePositions();
+    
+    // Rebuild the filtered graph
+    this.rebuildFilteredGraph();
+    
+    // Restore cached positions
+    this.restoreNodePositions();
+    
+    // Refresh renderer
+    if (this.renderer) {
+      this.renderer.refresh();
+    }
+    
+    // Update parent counts in sidebar
+    this.populateParentSidebar();
+  }
+  
+  rebuildFilteredGraph() {
+    // Clear current graph
+    this.graph.clear();
+    
+    // Add nodes from visible parents
+    this.fullGraph.forEachNode((node, attrs) => {
+      if (this.visibleParents.has(attrs.parent)) {
+        this.graph.addNode(node, { ...attrs });
+      }
+    });
+    
+    // Add edges where both source and target are visible
+    this.fullGraph.forEachEdge((edge, attrs, source, target) => {
+      if (this.graph.hasNode(source) && this.graph.hasNode(target)) {
+        this.graph.addEdge(source, target, { ...attrs });
+      }
+    });
+  }
+  
+  cacheNodePositions() {
+    // Store positions for all nodes in current graph
+    this.graph.forEachNode((node, attrs) => {
+      if (attrs.x !== undefined && attrs.y !== undefined) {
+        this.nodePositions[node] = { x: attrs.x, y: attrs.y };
+      }
+    });
+  }
+  
+  restoreNodePositions() {
+    // Restore positions for visible nodes
+    this.graph.forEachNode((node) => {
+      if (this.nodePositions[node]) {
+        this.graph.setNodeAttribute(node, 'x', this.nodePositions[node].x);
+        this.graph.setNodeAttribute(node, 'y', this.nodePositions[node].y);
+      }
     });
   }
   
