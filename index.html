@@ -12,14 +12,12 @@
   <body>
     <div class="controls">
       <button id="start-layout">Start</button>
+      <button id="load-file">Load Graph</button>
       <label>Max Itr: <input type="number" id="max-iterations" min="10" max="5000" step="10" value="600" /></label>
       <label><input type="checkbox" id="remove-isolated" checked /> Remove isolated nodes</label>
-      <button id="zoom-in">+</button>
-      <button id="zoom-out">-</button>
-      <!-- set zoom-reset invisible / non targetable-->
-      <button id="zoom-reset">Reset Zoom</button>
+      <button id="zoom-in">🔍+</button>
+      <button id="zoom-out">🔍−</button>
       <button id="theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
-      <button id="load-file">Load New File</button>
       <input type="file" id="file-input" accept=".gexf" style="display: none;" />
       <span id="filename-display"></span>
       <span id="iteration-counter">No file loaded</span>

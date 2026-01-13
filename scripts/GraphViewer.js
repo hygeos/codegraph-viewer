@@ -8,9 +8,9 @@ class GraphViewer {
     this.isInitialized = false;
     this.loadedFilename = null;
     
-    // Load theme preference FIRST before anything else, default to dark
+    // Load theme preference, default to light mode
     const savedTheme = localStorage.getItem('theme');
-    this.isDarkMode = savedTheme ? savedTheme === 'dark' : true;
+    this.isDarkMode = savedTheme ? savedTheme === 'dark' : false;
     
     // Bind file selector and theme toggle immediately
     this.bindFileSelector();
@@ -114,12 +114,12 @@ class GraphViewer {
       velocities[node] = { x: 0, y: 0 };
     });
 
-    const k = 8; // Target edge length
+    const k = 6; // Target edge length
     const c_rep_max = 1500; // Repulsion constant maximum
     const c_rep_min = 50;   // Repulsion constant minimum
     
     const c_spring = 0.075;       // Spring constant
-    const maxRepulsionDist = 250; // Only calculate repulsion within this distance
+    const maxRepulsionDist = 100; // Only calculate repulsion within this distance
     const refreshRate = 1;       // Refresh every 10 iterations
     
     const c_rep_itr_at_min = 10;
@@ -299,7 +299,7 @@ class GraphViewer {
 
   setupSigma(graph) {
     const container = document.getElementById("sigma-container");
-    const edgeColor = this.isDarkMode ? "#3f3f3fff" : "#d4d4d4ff";
+    const edgeColor = this.isDarkMode ? "#535353ff" : "#d4d4d4ff";
     const labelColor = this.isDarkMode ? "#e0e0e0" : "#000000";
     
     this.renderer = new Sigma(graph, container, {
@@ -336,7 +336,6 @@ class GraphViewer {
   bindControls() {
     const zoomInBtn = document.getElementById("zoom-in");
     const zoomOutBtn = document.getElementById("zoom-out");
-    const zoomResetBtn = document.getElementById("zoom-reset");
     const removeIsolatedCheckbox = document.getElementById("remove-isolated");
 
     zoomInBtn.addEventListener("click", () => {
@@ -345,10 +344,6 @@ class GraphViewer {
     
     zoomOutBtn.addEventListener("click", () => {
       this.camera.animatedUnzoom({ duration: 600 });
-    });
-    
-    zoomResetBtn.addEventListener("click", () => {
-      this.camera.animatedReset({ duration: 600 });
     });
     
     removeIsolatedCheckbox.addEventListener("change", () => {
