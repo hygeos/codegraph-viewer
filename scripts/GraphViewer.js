@@ -375,6 +375,9 @@ class GraphViewer {
       console.log('Node hover:', node, 'attrs:', attrs); // Debug log
       
       let content = `<strong>${attrs.label || node}</strong><br>`;
+      if (attrs.parent) {
+        content += `Parent: <span style="color: ${attrs.color}">${attrs.parent}</span><br>`;
+      }
       if (attrs.file) {
         content += `File: ${attrs.file}`;
         if (attrs.line) {
