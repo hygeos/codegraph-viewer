@@ -7,6 +7,8 @@ class GraphViewer {
     this.layoutRunning = false;
     this.isInitialized = false;
     this.loadedFilename = null;
+    this.completedIterations = 0;
+    this.targetIterations = 0;
     
     // Load theme preference, default to light mode
     const savedTheme = localStorage.getItem('theme');
@@ -16,10 +18,13 @@ class GraphViewer {
     this.bindFileSelector();
     this.bindThemeToggle();
     this.bindStartButton();
+    this.bindResetButton();
   }
 
   cleanState() {
     this.layoutRunning = false;
+    this.completedIterations = 0;
+    this.targetIterations = 0;
     
     if (this.renderer) {
       this.renderer.kill();
@@ -124,11 +129,23 @@ class GraphViewer {
     return nodesToRemove.length;
   }
 
-  async applyForceLayout(graph, iterations = 100) {
+  async applyForceLayout(graph, requestedIterations = 100) {
     this.layoutRunning = true;
     const startBtn = document.getElementById('start-layout');
     const counter = document.getElementById('iteration-counter');
     if (startBtn) startBtn.textContent = 'Stop';
+    
+    // If continuing from stopped state, use remaining iterations to previous target
+    // If completed or first run, set new target
+    let iterations;
+    if (this.completedIterations < this.targetIterations) {
+      // Continuing from stopped state - use remaining iterations
+      iterations = this.targetIterations - this.completedIterations;
+    } else {
+      // Completed or first run - add to target
+      iterations = requestedIterations;
+      this.targetIterations = this.completedIterations + iterations;
+    }
     
     // Check if we should remove isolated nodes
     const removeIsolatedCheckbox = document.getElementById('remove-isolated');
@@ -164,17 +181,21 @@ class GraphViewer {
     
     const c_rep_itr_at_min = 10;
     const c_rep_max_itr =  Math.floor(iterations / 4) * 1;
+    const startIteration = this.completedIterations;
     
     for (let iter = 0; iter < iterations; iter++) {
+      const absoluteIter = startIteration + iter;
+      
       // Check if layout was stopped
       if (!this.layoutRunning) {
-        if (counter) counter.textContent = 'Stopped';
-        if (startBtn) startBtn.textContent = 'Start';
+        this.completedIterations = absoluteIter;
+        if (counter) counter.textContent = `Stopped: ${absoluteIter}/${this.targetIterations}`;
+        if (startBtn) startBtn.textContent = 'Continue';
         return;
       }
       
       if (counter) {
-        counter.textContent = `Running: ${iter}/${iterations}`;
+        counter.textContent = `Running: ${absoluteIter}/${this.targetIterations}`;
       }
       
       // Update rendering every Nth iterations
@@ -213,12 +234,12 @@ class GraphViewer {
           
           // Repulsion gradually increases from min to max between c_rep_itr_at_min and c_rep_max_itr
           let c_rep;
-          if (iter < c_rep_itr_at_min) {
+          if (absoluteIter < c_rep_itr_at_min) {
             c_rep = c_rep_min;
-          } else if (iter <= c_rep_max_itr) {
+          } else if (absoluteIter <= c_rep_max_itr) {
             c_rep = c_rep_max;
           } else {
-            const progress = (iter - c_rep_itr_at_min) / (c_rep_max_itr - c_rep_itr_at_min);
+            const progress = (absoluteIter - c_rep_itr_at_min) / (c_rep_max_itr - c_rep_itr_at_min);
             c_rep = c_rep_min + (c_rep_max - c_rep_min) * progress;
           }
           
@@ -267,10 +288,11 @@ class GraphViewer {
     }
 
     this.layoutRunning = false;
+    this.completedIterations += iterations;
     if (counter) {
-      counter.textContent = `Completed ${iterations} itr`;
+      counter.textContent = `Completed: ${this.completedIterations}/${this.targetIterations}`;
     }
-    if (startBtn) startBtn.textContent = 'Start';
+    if (startBtn) startBtn.textContent = 'Continue';
   }
 
   bindThemeToggle() {
@@ -370,6 +392,32 @@ class GraphViewer {
         const iterations = parseInt(maxIterationsInput.value) || 600;
         await this.applyForceLayout(this.graph, iterations);
       }
+    });
+  }
+
+  bindResetButton() {
+    const resetBtn = document.getElementById("reset-layout");
+    if (!resetBtn) return;
+
+    resetBtn.addEventListener("click", () => {
+      if (!this.graph) return;
+      
+      // Reset iteration counter
+      this.completedIterations = 0;
+      
+      // Reinitialize positions with epicenter-based layout
+      this.initializeNodePositions();
+      
+      // Refresh renderer to show new positions
+      if (this.renderer) {
+        this.renderer.refresh();
+      }
+      
+      // Update UI
+      const startBtn = document.getElementById('start-layout');
+      const counter = document.getElementById('iteration-counter');
+      if (startBtn) startBtn.textContent = 'Start';
+      if (counter) counter.textContent = 'Layout reset';
     });
   }
 
