@@ -70,10 +70,46 @@ class GraphViewer {
   }
 
   initializeNodePositions() {
+    const parents = this.graph.getAttribute('parents') || [];
+    const parentCount = parents.length;
+    
+    if (parentCount === 0) {
+      // Fallback to random if no parents
+      const nodes = this.graph.nodes();
+      nodes.forEach(node => {
+        this.graph.setNodeAttribute(node, 'x', Math.random() * 200 - 100);
+        this.graph.setNodeAttribute(node, 'y', Math.random() * 200 - 100);
+      });
+      return;
+    }
+    
+    // Calculate epicenters in a circular arrangement
+    const radius = 100; // Distance of epicenters from origin
+    const epicenters = {};
+    
+    parents.forEach((parent, index) => {
+      const angle = (2 * Math.PI * index) / parentCount;
+      epicenters[parent] = {
+        x: radius * Math.cos(angle),
+        y: radius * Math.sin(angle)
+      };
+    });
+    
+    // Position nodes around their parent's epicenter
     const nodes = this.graph.nodes();
+    const spreadRadius = 30; // How far nodes spread from epicenter
+    
     nodes.forEach(node => {
-      this.graph.setNodeAttribute(node, 'x', Math.random() * 200 - 100);
-      this.graph.setNodeAttribute(node, 'y', Math.random() * 200 - 100);
+      const attrs = this.graph.getNodeAttributes(node);
+      const parent = attrs.parent || 'unknown';
+      const epicenter = epicenters[parent] || { x: 0, y: 0 };
+      
+      // Random offset around epicenter
+      const offsetAngle = Math.random() * 2 * Math.PI;
+      const offsetDist = Math.random() * spreadRadius;
+      
+      this.graph.setNodeAttribute(node, 'x', epicenter.x + offsetDist * Math.cos(offsetAngle));
+      this.graph.setNodeAttribute(node, 'y', epicenter.y + offsetDist * Math.sin(offsetAngle));
     });
   }
 
@@ -108,11 +144,12 @@ class GraphViewer {
     const positions = {};
     const velocities = {};
     
-    // Initialize positions and velocities within a bounded area
+    // Use current positions from graph instead of reinitializing randomly
     nodes.forEach(node => {
+      const attrs = graph.getNodeAttributes(node);
       positions[node] = { 
-        x: Math.random() * 200 - 100, 
-        y: Math.random() * 200 - 100 
+        x: attrs.x || Math.random() * 200 - 100, 
+        y: attrs.y || Math.random() * 200 - 100 
       };
       velocities[node] = { x: 0, y: 0 };
     });

@@ -52,7 +52,6 @@ body {
 #parent-sidebar {
   width: 250px;
   background: var(--control-bg);
-  border-radius: 8px;
   padding: 15px;
   overflow-y: auto;
   transition: background-color 0.3s ease;
@@ -71,7 +70,6 @@ body {
   padding: 4px 8px;
   margin-bottom: 4px;
   background: var(--bg-secondary);
-  border-radius: 4px;
   transition: background-color 0.2s ease;
 }
 
@@ -82,7 +80,6 @@ body {
 .color-swatch {
   width: 24px;
   height: 24px;
-  border-radius: 4px;
   cursor: pointer;
   border: 2px solid var(--control-border);
   transition: transform 0.2s ease;
@@ -127,7 +124,6 @@ body {
   gap: 10px;
   padding: 10px;
   background: var(--control-bg);
-  border-radius: 8px;
   transition: background-color 0.3s ease;
 }
 
@@ -142,7 +138,6 @@ button {
   background: var(--button-bg);
   color: var(--button-text);
   border: 1px solid var(--control-border);
-  border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -168,7 +163,6 @@ input[type="number"] {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--control-border);
-  border-radius: 4px;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -183,7 +177,6 @@ input[type="checkbox"] {
   background: var(--tooltip-bg);
   color: var(--tooltip-text);
   padding: 8px 12px;
-  border-radius: 4px;
   pointer-events: none;
   z-index: 1000;
   font-size: 12px;
