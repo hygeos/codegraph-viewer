@@ -152,16 +152,6 @@ class GraphViewer {
       this.targetIterations = this.completedIterations + iterations;
     }
     
-    // Check if we should remove isolated nodes
-    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
-    if (removeIsolatedCheckbox && removeIsolatedCheckbox.checked) {
-      const removed = this.removeIsolatedNodes(graph);
-      if (counter && removed > 0) {
-        counter.textContent = `Removed ${removed} isolated node${removed > 1 ? 's' : ''}`;
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    
     const startIteration = this.completedIterations;
     
     // Apply force layout with callbacks
@@ -313,11 +303,18 @@ class GraphViewer {
     resetBtn.addEventListener("click", () => {
       if (!this.graph) return;
       
-      // Reset iteration counter
+      // Stop the layout if running
+      this.layoutRunning = false;
+      
+      // Reset iteration counters
       this.completedIterations = 0;
+      this.targetIterations = 0;
       
       // Reinitialize positions with epicenter-based layout
       this.initializeNodePositions();
+      
+      // Cache the new positions
+      this.cacheNodePositions();
       
       // Refresh renderer to show new positions
       if (this.renderer) {
@@ -328,7 +325,7 @@ class GraphViewer {
       const startBtn = document.getElementById('start-layout');
       const counter = document.getElementById('iteration-counter');
       if (startBtn) startBtn.textContent = 'Start';
-      if (counter) counter.textContent = 'Layout reset';
+      if (counter) counter.textContent = 'Ready (0/0)';
     });
   }
 
@@ -346,13 +343,57 @@ class GraphViewer {
     });
     
     removeIsolatedCheckbox.addEventListener("change", () => {
-      if (!removeIsolatedCheckbox.checked && this.fullGraph) {
+      if (!this.graph) return;
+      
+      // Cache current positions
+      this.cacheNodePositions();
+      
+      if (removeIsolatedCheckbox.checked) {
+        // Remove isolated nodes from the graph
+        const nodesToRemove = [];
+        this.graph.forEachNode((node) => {
+          if (this.graph.degree(node) === 0) {
+            nodesToRemove.push(node);
+          }
+        });
+        nodesToRemove.forEach(node => this.graph.dropNode(node));
+        
+        if (this.renderer) {
+          this.renderer.refresh();
+        }
+      } else {
         // Restore from full graph with current parent filters
         this.rebuildFilteredGraph();
-        this.renderer.refresh();
         
-        const counter = document.getElementById('iteration-counter');
-        if (counter) counter.textContent = 'Isolated nodes restored';
+        // Initialize positions for nodes that don't have them (using epicenter method)
+        this.graph.forEachNode((node, attrs) => {
+          if (attrs.x === undefined || attrs.y === undefined) {
+            // Node doesn't have position, use parent epicenter
+            const parent = attrs.parent;
+            const parents = this.graph.getAttribute('parents') || [];
+            const parentIndex = parents.indexOf(parent);
+            
+            if (parentIndex !== -1) {
+              const parentCount = parents.length;
+              const radius = 100;
+              const angle = (2 * Math.PI * parentIndex) / parentCount;
+              const epicenterX = radius * Math.cos(angle);
+              const epicenterY = radius * Math.sin(angle);
+              
+              // Place near epicenter with small random offset
+              const offset = 10;
+              this.graph.setNodeAttribute(node, 'x', epicenterX + (Math.random() - 0.5) * offset);
+              this.graph.setNodeAttribute(node, 'y', epicenterY + (Math.random() - 0.5) * offset);
+            }
+          }
+        });
+        
+        // Cache the positions
+        this.cacheNodePositions();
+        
+        if (this.renderer) {
+          this.renderer.refresh();
+        }
       }
     });
   }
@@ -492,6 +533,9 @@ class GraphViewer {
     
     // Update parent counts in sidebar
     this.populateParentSidebar();
+    
+    // Note: We don't stop the layout algorithm - let it continue running
+    // The force algorithm will automatically work with the new filtered graph
   }
   
   rebuildFilteredGraph() {
@@ -511,6 +555,18 @@ class GraphViewer {
         this.graph.addEdge(source, target, { ...attrs });
       }
     });
+    
+    // Apply isolated nodes filter if checkbox is checked
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+    if (removeIsolatedCheckbox && removeIsolatedCheckbox.checked) {
+      const nodesToRemove = [];
+      this.graph.forEachNode((node) => {
+        if (this.graph.degree(node) === 0) {
+          nodesToRemove.push(node);
+        }
+      });
+      nodesToRemove.forEach(node => this.graph.dropNode(node));
+    }
   }
   
   cacheNodePositions() {
@@ -518,6 +574,11 @@ class GraphViewer {
     this.graph.forEachNode((node, attrs) => {
       if (attrs.x !== undefined && attrs.y !== undefined) {
         this.nodePositions[node] = { x: attrs.x, y: attrs.y };
+        // Also update fullGraph so positions persist across filtering
+        if (this.fullGraph.hasNode(node)) {
+          this.fullGraph.setNodeAttribute(node, 'x', attrs.x);
+          this.fullGraph.setNodeAttribute(node, 'y', attrs.y);
+        }
       }
     });
   }
