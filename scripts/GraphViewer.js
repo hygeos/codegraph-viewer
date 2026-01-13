@@ -9,6 +9,7 @@ class GraphViewer {
     this.loadedFilename = null;
     this.completedIterations = 0;
     this.targetIterations = 0;
+    this.forceLayout = new GraphForce();
     
     // Load theme preference, default to light mode
     const savedTheme = localStorage.getItem('theme');
@@ -119,14 +120,7 @@ class GraphViewer {
   }
 
   removeIsolatedNodes(graph) {
-    const nodesToRemove = [];
-    graph.forEachNode((node) => {
-      if (graph.degree(node) === 0) {
-        nodesToRemove.push(node);
-      }
-    });
-    nodesToRemove.forEach(node => graph.dropNode(node));
-    return nodesToRemove.length;
+    return GraphForce.removeIsolatedNodes(graph);
   }
 
   async applyForceLayout(graph, requestedIterations = 100) {
@@ -157,56 +151,27 @@ class GraphViewer {
       }
     }
     
-    const nodes = graph.nodes();
-    const positions = {};
-    const velocities = {};
-    
-    // Use current positions from graph instead of reinitializing randomly
-    nodes.forEach(node => {
-      const attrs = graph.getNodeAttributes(node);
-      positions[node] = { 
-        x: attrs.x || Math.random() * 200 - 100, 
-        y: attrs.y || Math.random() * 200 - 100 
-      };
-      velocities[node] = { x: 0, y: 0 };
-    });
-
-    const k = 6; // Target edge length
-    const c_rep_max = 1500; // Repulsion constant maximum
-    const c_rep_min = 50;   // Repulsion constant minimum
-    
-    const c_spring = 0.075;       // Spring constant
-    const maxRepulsionDist = 100; // Only calculate repulsion within this distance
-    const refreshRate = 1;       // Refresh every 10 iterations
-    
-    const c_rep_itr_at_min = 10;
-    const c_rep_max_itr =  Math.floor(iterations / 4) * 1;
     const startIteration = this.completedIterations;
     
-    for (let iter = 0; iter < iterations; iter++) {
-      const absoluteIter = startIteration + iter;
-      
-      // Check if layout was stopped
-      if (!this.layoutRunning) {
-        this.completedIterations = absoluteIter;
-        if (counter) counter.textContent = `Stopped: ${absoluteIter}/${this.targetIterations}`;
-        if (startBtn) startBtn.textContent = 'Continue';
-        return;
-      }
-      
-      if (counter) {
-        counter.textContent = `Running: ${absoluteIter}/${this.targetIterations}`;
-      }
-      
-      // Update rendering every Nth iterations
-      if (iter % refreshRate === 0) {
-        // Apply current positions to graph
-        nodes.forEach(node => {
-          graph.setNodeAttribute(node, 'x', positions[node].x);
-          graph.setNodeAttribute(node, 'y', positions[node].y);
+    // Apply force layout with callbacks
+    const result = await this.forceLayout.apply(
+      graph,
+      iterations,
+      startIteration,
+      () => !this.layoutRunning,
+      (iter, absoluteIter) => {
+        if (counter) {
+          counter.textContent = `Running: ${absoluteIter}/${this.targetIterations}`;
+        }
+      },
+      async (positions) => {
+        // Apply positions to graph
+        Object.entries(positions).forEach(([node, pos]) => {
+          graph.setNodeAttribute(node, 'x', pos.x);
+          graph.setNodeAttribute(node, 'y', pos.y);
         });
         
-        // Refresh the renderer
+        // Refresh renderer
         if (this.renderer) {
           this.renderer.refresh();
         }
@@ -214,85 +179,20 @@ class GraphViewer {
         // Allow UI to update
         await new Promise(resolve => setTimeout(resolve, 0));
       }
-      
-      const forces = {};
-      nodes.forEach(node => {
-        forces[node] = { x: 0, y: 0 };
-      });
-
-      // Optimized repulsion - only nearby nodes
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const node1 = nodes[i];
-          const node2 = nodes[j];
-          const dx = positions[node2].x - positions[node1].x;
-          const dy = positions[node2].y - positions[node1].y;
-          const dist = Math.sqrt(dx * dx + dy * dy); // || 0.1;
-          
-          // Skip distant nodes for performance
-          if (dist > maxRepulsionDist) continue;
-          
-          // Repulsion gradually increases from min to max between c_rep_itr_at_min and c_rep_max_itr
-          let c_rep;
-          if (absoluteIter < c_rep_itr_at_min) {
-            c_rep = c_rep_min;
-          } else if (absoluteIter <= c_rep_max_itr) {
-            c_rep = c_rep_max;
-          } else {
-            const progress = (absoluteIter - c_rep_itr_at_min) / (c_rep_max_itr - c_rep_itr_at_min);
-            c_rep = c_rep_min + (c_rep_max - c_rep_min) * progress;
-          }
-          
-          const force = c_rep / (dist * dist);
-          
-          forces[node1].x -= (dx / dist) * force;
-          forces[node1].y -= (dy / dist) * force;
-          forces[node2].x += (dx / dist) * force;
-          forces[node2].y += (dy / dist) * force;
-        }
-      }
-
-      // Attraction along edges
-      graph.forEachEdge((edge, attrs, source, target) => {
-        const dx = positions[target].x - positions[source].x;
-        const dy = positions[target].y - positions[source].y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 0.2;
-        const force = c_spring * (dist - k);
-        
-        forces[source].x += (dx / dist) * force;
-        forces[source].y += (dy / dist) * force;
-        forces[target].x -= (dx / dist) * force;
-        forces[target].y -= (dy / dist) * force;
-      });
-
-      // Update positions with damping and velocity limiting
-      const damping = 0.9;
-      const timeStep = 0.3;
-      const max_velocity = 20; // Limit velocity to prevent explosion
-      const min_velocity = 5; // reach min_velocity at last iteration
-      
-      nodes.forEach(node => {
-        
-        const curr_max_velocity = max_velocity - ((max_velocity - min_velocity) * (iter / iterations));
-        
-        velocities[node].x = (velocities[node].x + forces[node].x * timeStep) * damping;
-        velocities[node].y = (velocities[node].y + forces[node].y * timeStep) * damping;
-        
-        // Clamp velocities
-        velocities[node].x = Math.max(-curr_max_velocity, Math.min(curr_max_velocity, velocities[node].x));
-        velocities[node].y = Math.max(-curr_max_velocity, Math.min(curr_max_velocity, velocities[node].y));
-        
-        positions[node].x += velocities[node].x;
-        positions[node].y += velocities[node].y;
-      });
+    );
+    
+    // Handle stopped vs completed
+    if (result.stoppedAt !== undefined) {
+      this.completedIterations = result.stoppedAt;
+      if (counter) counter.textContent = `Stopped: ${result.stoppedAt}/${this.targetIterations}`;
+      if (startBtn) startBtn.textContent = 'Continue';
+    } else {
+      this.completedIterations += iterations;
+      if (counter) counter.textContent = `Completed: ${this.completedIterations}/${this.targetIterations}`;
+      if (startBtn) startBtn.textContent = 'Continue';
     }
-
+    
     this.layoutRunning = false;
-    this.completedIterations += iterations;
-    if (counter) {
-      counter.textContent = `Completed: ${this.completedIterations}/${this.targetIterations}`;
-    }
-    if (startBtn) startBtn.textContent = 'Continue';
   }
 
   bindThemeToggle() {
