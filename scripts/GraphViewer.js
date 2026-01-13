@@ -58,6 +58,9 @@ class GraphViewer {
       
       this.bindHoverEvents();
       
+      // Populate parent sidebar
+      this.populateParentSidebar();
+      
       this.updateUI('Ready');
       
     } catch (error) {
@@ -402,6 +405,113 @@ class GraphViewer {
         tooltip.style.top = e.y + 10 + 'px';
       }
     });
+  }
+  
+  populateParentSidebar() {
+    const parentList = document.getElementById('parent-list');
+    if (!parentList) return;
+    
+    const parents = this.graph.getAttribute('parents') || [];
+    const parentColorMap = this.graph.getAttribute('parentColorMap') || {};
+    
+    // Count nodes per parent
+    const parentCounts = {};
+    parents.forEach(parent => parentCounts[parent] = 0);
+    
+    this.graph.forEachNode((node, attrs) => {
+      if (attrs.parent && parentCounts[attrs.parent] !== undefined) {
+        parentCounts[attrs.parent]++;
+      }
+    });
+    
+    // Clear existing content
+    parentList.innerHTML = '';
+    
+    // Create parent items
+    parents.forEach(parent => {
+      const color = parentColorMap[parent] || '#666666';
+      const count = parentCounts[parent] || 0;
+      
+      const item = document.createElement('div');
+      item.className = 'parent-item';
+      
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.backgroundColor = color;
+      swatch.title = 'Click to change color';
+      
+      const info = document.createElement('div');
+      info.className = 'parent-info';
+      
+      const name = document.createElement('div');
+      name.className = 'parent-name';
+      name.textContent = parent;
+      
+      const countLabel = document.createElement('div');
+      countLabel.className = 'parent-count';
+      countLabel.textContent = `${count} node${count !== 1 ? 's' : ''}`;
+      
+      info.appendChild(name);
+      info.appendChild(countLabel);
+      item.appendChild(swatch);
+      item.appendChild(info);
+      
+      // Add color picker functionality
+      swatch.addEventListener('click', () => {
+        this.openColorPicker(parent, color);
+      });
+      
+      parentList.appendChild(item);
+    });
+  }
+  
+  openColorPicker(parent, currentColor) {
+    // Create a temporary color input
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = currentColor;
+    input.style.position = 'absolute';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    
+    input.addEventListener('change', (e) => {
+      const newColor = e.target.value;
+      this.updateParentColor(parent, newColor);
+      document.body.removeChild(input);
+    });
+    
+    input.addEventListener('blur', () => {
+      // Clean up if user cancels
+      setTimeout(() => {
+        if (document.body.contains(input)) {
+          document.body.removeChild(input);
+        }
+      }, 100);
+    });
+    
+    input.click();
+  }
+  
+  updateParentColor(parent, newColor) {
+    // Update the color map
+    const parentColorMap = this.graph.getAttribute('parentColorMap') || {};
+    parentColorMap[parent] = newColor;
+    this.graph.setAttribute('parentColorMap', parentColorMap);
+    
+    // Update all nodes with this parent
+    this.graph.forEachNode((node, attrs) => {
+      if (attrs.parent === parent) {
+        this.graph.setNodeAttribute(node, 'color', newColor);
+      }
+    });
+    
+    // Refresh the renderer
+    if (this.renderer) {
+      this.renderer.refresh();
+    }
+    
+    // Update the sidebar display
+    this.populateParentSidebar();
   }
   
   updateUI(counterText, buttonText) {
