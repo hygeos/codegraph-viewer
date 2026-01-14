@@ -79,6 +79,13 @@ class GraphViewer {
       // Populate parent sidebar
       this.populateParentSidebar();
       
+      // Apply initial filter state (remove isolated nodes if checkbox is checked)
+      const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+      if (removeIsolatedCheckbox && removeIsolatedCheckbox.checked) {
+        this.rebuildFilteredGraph();
+        this.renderer.refresh();
+      }
+      
       this.updateUI('Ready');
       
     } catch (error) {
@@ -349,52 +356,40 @@ class GraphViewer {
       // Cache current positions
       this.cacheNodePositions();
       
-      if (removeIsolatedCheckbox.checked) {
-        // Remove isolated nodes from the graph
-        const nodesToRemove = [];
-        this.graph.forEachNode((node) => {
-          if (this.graph.degree(node) === 0) {
-            nodesToRemove.push(node);
-          }
-        });
-        nodesToRemove.forEach(node => this.graph.dropNode(node));
-        
-        if (this.renderer) {
-          this.renderer.refresh();
-        }
-      } else {
-        // Restore from full graph with current parent filters
-        this.rebuildFilteredGraph();
-        
-        // Initialize positions for nodes that don't have them (using epicenter method)
-        this.graph.forEachNode((node, attrs) => {
-          if (attrs.x === undefined || attrs.y === undefined) {
-            // Node doesn't have position, use parent epicenter
-            const parent = attrs.parent;
-            const parents = this.graph.getAttribute('parents') || [];
-            const parentIndex = parents.indexOf(parent);
+      // Rebuild graph with current filters (including isolated nodes setting)
+      this.rebuildFilteredGraph();
+      
+      // Initialize positions for nodes that don't have them (using epicenter method)
+      this.graph.forEachNode((node, attrs) => {
+        if (attrs.x === undefined || attrs.y === undefined) {
+          // Node doesn't have position, use parent epicenter
+          const parent = attrs.parent;
+          const parents = this.graph.getAttribute('parents') || [];
+          const parentIndex = parents.indexOf(parent);
+          
+          if (parentIndex !== -1) {
+            const parentCount = parents.length;
+            const radius = 100;
+            const angle = (2 * Math.PI * parentIndex) / parentCount;
+            const epicenterX = radius * Math.cos(angle);
+            const epicenterY = radius * Math.sin(angle);
             
-            if (parentIndex !== -1) {
-              const parentCount = parents.length;
-              const radius = 100;
-              const angle = (2 * Math.PI * parentIndex) / parentCount;
-              const epicenterX = radius * Math.cos(angle);
-              const epicenterY = radius * Math.sin(angle);
-              
-              // Place near epicenter with small random offset
-              const offset = 10;
-              this.graph.setNodeAttribute(node, 'x', epicenterX + (Math.random() - 0.5) * offset);
-              this.graph.setNodeAttribute(node, 'y', epicenterY + (Math.random() - 0.5) * offset);
-            }
+            // Place near epicenter with small random offset
+            const offset = 10;
+            this.graph.setNodeAttribute(node, 'x', epicenterX + (Math.random() - 0.5) * offset);
+            this.graph.setNodeAttribute(node, 'y', epicenterY + (Math.random() - 0.5) * offset);
           }
-        });
-        
-        // Cache the positions
-        this.cacheNodePositions();
-        
-        if (this.renderer) {
-          this.renderer.refresh();
         }
+      });
+      
+      // Restore cached positions for existing nodes
+      this.restoreNodePositions();
+      
+      // Cache the new positions
+      this.cacheNodePositions();
+      
+      if (this.renderer) {
+        this.renderer.refresh();
       }
     });
   }
@@ -446,11 +441,11 @@ class GraphViewer {
     const parents = this.graph.getAttribute('parents') || [];
     const parentColorMap = this.graph.getAttribute('parentColorMap') || {};
     
-    // Count nodes per parent
+    // Count nodes per parent from fullGraph (total count, not filtered)
     const parentCounts = {};
     parents.forEach(parent => parentCounts[parent] = 0);
     
-    this.graph.forEachNode((node, attrs) => {
+    this.fullGraph.forEachNode((node, attrs) => {
       if (attrs.parent && parentCounts[attrs.parent] !== undefined) {
         parentCounts[attrs.parent]++;
       }
@@ -659,6 +654,8 @@ class GraphViewer {
     presetSelect.addEventListener('change', () => {
       if (presetSelect.value) {
         this.loadPreset(presetSelect.value);
+        // Put the preset name in the input field for easy editing
+        presetName.value = presetSelect.value;
       }
     });
     
@@ -670,7 +667,6 @@ class GraphViewer {
         return;
       }
       this.savePreset(name);
-      presetName.value = '';
     });
     
     // Delete selected preset
@@ -701,8 +697,10 @@ class GraphViewer {
   
   savePreset(name) {
     const presets = this.getPresets();
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
     presets[name] = {
       visibleParents: Array.from(this.visibleParents),
+      removeIsolated: removeIsolatedCheckbox ? removeIsolatedCheckbox.checked : true,
       timestamp: new Date().toISOString()
     };
     localStorage.setItem('filterPresets', JSON.stringify(presets));
@@ -720,6 +718,12 @@ class GraphViewer {
     
     // Update visible parents
     this.visibleParents = new Set(preset.visibleParents);
+    
+    // Update remove isolated checkbox
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+    if (removeIsolatedCheckbox) {
+      removeIsolatedCheckbox.checked = preset.removeIsolated !== undefined ? preset.removeIsolated : true;
+    }
     
     // Cache positions and rebuild graph
     this.cacheNodePositions();
