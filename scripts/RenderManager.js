@@ -90,6 +90,13 @@ class RenderManager {
         context.arc(x, y, size, 0, Math.PI * 2);
         context.fill();
         
+        // Draw outline around hovered node
+        context.strokeStyle = isDarkMode ? "#ffffff" : "#000000";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(x, y, size, 0, Math.PI * 2);
+        context.stroke();
+        
         // Get node data for detailed info
         const nodeId = data.key;
         const attrs = this.state.getNodeAttributes(nodeId);

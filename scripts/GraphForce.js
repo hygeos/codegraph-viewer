@@ -2,21 +2,21 @@ class GraphForce {
   constructor() {
     // Force algorithm parameters
     this.k = 6; // Target edge length
-    this.c_rep_max = 1500; // Repulsion constant maximum
+    this.c_rep_max = 2000; // Repulsion constant maximum
     this.c_rep_min = 500;   // Repulsion constant minimum
     this.c_spring = 0.075; // Spring constant
     this.maxRepulsionDist = 100; // Only calculate repulsion within this distance
     this.refreshRate = 1; // Refresh every N iterations
     
     // Velocity parameters
-    this.damping = 0.9;
+    this.damping = 0.8;
     this.timeStep = 0.3;
     this.max_velocity = 20;
-    this.min_velocity = 5;
+    this.min_velocity = 3;
     
     // Repulsion schedule parameters
-    this.c_rep_itr_at_min = 10;
-    this.c_rep_max_itr_factor = 0.25; // 1/4 of total iterations
+    this.c_rep_min_itr_start = 10;
+    this.c_rep_max_itr_factor = 0.25; // 1/10 of total iterations
   }
 
   /**
@@ -107,12 +107,33 @@ class GraphForce {
       }
     }
 
+    // Center repulsion: push nodes away from origin to create void
+    nodes.forEach(node => {
+      const pos = positions[node];
+      const distFromCenter = Math.sqrt(pos.x * pos.x + pos.y * pos.y);
+      
+      // Only apply repulsion within specified distance from center
+      if (distFromCenter < this.centerRepulsionDist && distFromCenter > 0.1) {
+        const force = this.c_center_repulsion / (distFromCenter * distFromCenter);
+        forces[node].x += (pos.x / distFromCenter) * force;
+        forces[node].y += (pos.y / distFromCenter) * force;
+      }
+    });
+
     // Attraction forces along edges
     graph.forEachEdge((edge, attrs, source, target) => {
       const dx = positions[target].x - positions[source].x;
       const dy = positions[target].y - positions[source].y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 0.2;
-      const force = this.c_spring * (dist - this.k);
+      var force = this.c_spring * (dist - this.k);
+      
+      const src_parent = graph.getNodeAttribute(source, 'parent');
+      const tgt_parent = graph.getNodeAttribute(target, 'parent');
+      
+      if (src_parent === tgt_parent) {
+        // Increase spring force for inter-group edges
+        force *= 2.0;
+      }
       
       forces[source].x += (dx / dist) * force;
       forces[source].y += (dy / dist) * force;
@@ -127,12 +148,12 @@ class GraphForce {
    * Get repulsion constant based on iteration schedule
    */
   getRepulsionConstant(absoluteIter, c_rep_max_itr) {
-    if (absoluteIter < this.c_rep_itr_at_min) {
+    if (absoluteIter < this.c_rep_min_itr_start) {
       return this.c_rep_min;
     } else if (absoluteIter <= c_rep_max_itr) {
       return this.c_rep_max;
     } else {
-      const progress = (absoluteIter - this.c_rep_itr_at_min) / (c_rep_max_itr - this.c_rep_itr_at_min);
+      const progress = (absoluteIter - this.c_rep_min_itr_start) / (c_rep_max_itr - this.c_rep_min_itr_start);
       return this.c_rep_min + (this.c_rep_max - this.c_rep_min) * progress;
     }
   }
