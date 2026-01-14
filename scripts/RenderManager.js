@@ -37,6 +37,12 @@ class RenderManager {
     
     /** @type {boolean} Whether dragging is enabled */
     this.isDragging = false;
+    
+    /** @type {string|null} Currently hovered node for tooltip positioning */
+    this.hoveredNode = null;
+    
+    /** @type {boolean} Current theme mode */
+    this.isDarkMode = false;
   }
 
   /**
@@ -54,15 +60,120 @@ class RenderManager {
       return;
     }
     
+    // Store theme state
+    this.isDarkMode = isDarkMode;
+    
     // Theme-specific color configuration
     const edgeColor = isDarkMode ? "#535353ff" : "#d4d4d4ff";
     const labelColor = isDarkMode ? "#e0e0e0" : "#000000";
+    const hoveredLabelBgColor = isDarkMode ? "#000000" : "#ffffff";
+    const hoveredLabelColor = isDarkMode ? "#e0e0e0" : "#000000";
     
     this.state.renderer = new Sigma(this.state.graph, container, {
-      minCameraRatio: 0.06,  // Maximum zoom in (smaller = more zoom)
-      maxCameraRatio: 3.5,      // Maximum zoom out
+      minCameraRatio: 0.06,
+      maxCameraRatio: 3.5,
       defaultEdgeColor: edgeColor,
       labelColor: { color: labelColor },
+      labelFont: "sans-serif",
+      labelSize: 12,
+      labelWeight: "normal",
+      
+      // Disable default hover rendering completely
+      enableEdgeHoverEvents: false,
+      
+      // Override ALL hover rendering
+      hoverRenderer: (context, data, settings) => {
+        // Draw the node itself
+        const { x, y, size, color } = data;
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(x, y, size, 0, Math.PI * 2);
+        context.fill();
+        
+        // Get node data for detailed info
+        const nodeId = data.key;
+        const attrs = this.state.getNodeAttributes(nodeId);
+        const inDegree = this.state.graph.inDegree(nodeId);
+        const outDegree = this.state.graph.outDegree(nodeId);
+        
+        // Build multi-line label with all info
+        const labelSize = settings.labelSize;
+        const font = settings.labelFont;
+        const weight = settings.labelWeight;
+        const lineHeight = labelSize + 4;
+        
+        context.font = `bold ${labelSize}px ${font}`;
+        
+        // Prepare all lines
+        const lines = [];
+        lines.push({ text: data.label || nodeId, isBold: true });
+        lines.push({ text: '━'.repeat(30), isBold: false }); // Separator line
+        if (attrs.file) {
+          const fileLine = attrs.line ? `${attrs.file}:${attrs.line}` : attrs.file;
+          lines.push({ text: `File: ${fileLine}`, isBold: false });
+        }
+        lines.push({ text: `Subcalls: ${outDegree}`, isBold: false });
+        lines.push({ text: `Called by: ${inDegree}`, isBold: false });
+        
+        // Calculate max width
+        let maxWidth = 0;
+        lines.forEach(line => {
+          if (line.isBold) {
+            context.font = `bold ${labelSize}px ${font}`;
+          } else {
+            context.font = `${weight} ${labelSize}px ${font}`;
+          }
+          const width = context.measureText(line.text).width;
+          if (width > maxWidth) maxWidth = width;
+        });
+        
+        const padding = 8;
+        const boxWidth = maxWidth + padding * 2;
+        const boxHeight = lines.length * lineHeight + padding * 2;
+        
+        // Calculate label position (to the right of the node)
+        const labelX = x + size + 4;
+        const labelY = y - size - 1;
+        
+        // Clear any shadows
+        context.shadowOffsetX = 0;
+        context.shadowOffsetY = 0;
+        context.shadowBlur = 0;
+        context.shadowColor = 'transparent';
+        
+        // Draw background rectangle
+        context.fillStyle = hoveredLabelBgColor;
+        context.fillRect(
+          labelX,
+          labelY,
+          boxWidth,
+          boxHeight
+        );
+        
+        // Draw 1px border
+        context.strokeStyle = hoveredLabelColor;
+        context.lineWidth = 1;
+        context.strokeRect(
+          labelX,
+          labelY,
+          boxWidth,
+          boxHeight
+        );
+        
+        // Draw each line of text with inverted color (left-aligned)
+        context.fillStyle = hoveredLabelColor;
+        context.textAlign = "left";
+        context.textBaseline = "top";
+        
+        lines.forEach((line, index) => {
+          if (line.isBold) {
+            context.font = `bold ${labelSize}px ${font}`;
+          } else {
+            context.font = `${weight} ${labelSize}px ${font}`;
+          }
+          context.fillText(line.text, labelX + padding, labelY + padding + index * lineHeight);
+        });
+      },
       // Label rendering settings
       renderLabels: true,
       labelRenderedSizeThreshold: 6,   // Only show labels when node is at least 6px on screen (higher = fewer labels when zoomed out)
@@ -167,65 +278,17 @@ class RenderManager {
   }
 
   /**
-   * Setup node hover tooltips
+   * Setup node hover events
    * 
-   * Displays a tooltip showing:
-   * - Node label
-   * - Parent name (with color)
-   * - File and line number (if available)
-   * - Incoming and outgoing edge counts
-   * 
-   * Tooltip follows mouse cursor within sigma container.
+   * Hover information is now displayed directly in the hovered label.
    */
   bindHoverEvents() {
     if (!this.state.renderer) return;
     
-    this.tooltip = document.getElementById('tooltip');
-    if (!this.tooltip) return;
-    
-    // Show tooltip when entering a node
-    this.state.renderer.on('enterNode', ({ node }) => {
-      const attrs = this.state.getNodeAttributes(node);
-      if (!attrs) return;
-      
-      const inDegree = this.state.graph.inDegree(node);
-      const outDegree = this.state.graph.outDegree(node);
-      
-      let content = `<strong>${attrs.label || node}</strong><br>`;
-      
-      if (attrs.parent) {
-        content += `Parent: <span style="color: ${attrs.color}">${attrs.parent}</span><br>`;
-      }
-      
-      if (attrs.file) {
-        content += `File: ${attrs.file}`;
-        if (attrs.line) {
-          content += ` (line ${attrs.line})`;
-        }
-        content += '<br>';
-      }
-      
-      content += `Incoming edges: ${inDegree}<br>`;
-      content += `Outgoing edges: ${outDegree}`;
-      
-      this.tooltip.innerHTML = content;
-      this.tooltip.style.display = 'block';
-    });
-    
-    // Hide tooltip when leaving a node
-    this.state.renderer.on('leaveNode', () => {
-      if (this.tooltip) {
-        this.tooltip.style.display = 'none';
-      }
-    });
-    
-    // Move tooltip with mouse
-    this.state.renderer.getMouseCaptor().on('mousemove', (e) => {
-      if (this.tooltip && this.tooltip.style.display === 'block') {
-        // Offset slightly from cursor to avoid blocking view
-        this.tooltip.style.left = e.x + 10 + 'px';
-        this.tooltip.style.top = e.y + 10 + 'px';
-      }
+    // No longer need tooltip - all info is in the hovered label
+    // Just keep the camera update listener for potential future use
+    this.state.camera.on('updated', () => {
+      // Camera updates trigger re-render automatically
     });
   }
 
