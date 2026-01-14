@@ -70,7 +70,8 @@ class GraphViewer {
       await this.initialize(content, filename);
     } catch (error) {
       console.error('Failed to initialize graph:', error);
-      this.layoutManager.updateUI('Error loading file', 'Start');
+      console.error('Error details:', error.message, error.stack);
+      this.layoutManager.updateUI('Error: ' + (error.message || 'Unknown error'), 'Start');
     }
   }
 
@@ -135,7 +136,7 @@ class GraphViewer {
     this.filterManager.applyInitialFilters();
     
     // Clear search
-    this.searchManager.clear();
+    this.searchManager.clearSearch();
     
     // Update UI
     this.layoutManager.updateUI('Ready (0/0)', 'Start');
@@ -147,7 +148,7 @@ class GraphViewer {
   cleanState() {
     this.state.cleanState();
     this.layoutManager.reset();
-    this.searchManager.clear();
+    this.searchManager.clearSearch();
   }
 
   /**
