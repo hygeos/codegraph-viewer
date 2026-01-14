@@ -29,6 +29,16 @@
       <div id="sigma-container"></div>
       <div id="parent-sidebar">
         <h3>Parents</h3>
+        <div class="preset-controls">
+          <select id="preset-select">
+            <option value="">-- Select Preset --</option>
+          </select>
+          <input type="text" id="preset-name" placeholder="Preset name..." />
+          <div>
+            <button id="save-preset" title="Save current filter as preset">Save</button>
+            <button id="delete-preset" title="Delete selected preset">Delete</button>
+          </div>
+        </div>
         <div id="parent-list"></div>
       </div>
     </div>

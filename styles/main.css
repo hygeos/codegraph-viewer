@@ -63,6 +63,60 @@ body {
   color: var(--text-primary);
 }
 
+.preset-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--control-border);
+}
+
+.preset-controls select,
+.preset-controls input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.preset-controls select:focus,
+.preset-controls input[type="text"]:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+
+.preset-controls button {
+  padding: 6px 12px;
+  background: var(--button-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  color: var(--button-text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.preset-controls button:hover {
+  background: var(--button-hover);
+}
+
+.preset-controls button:active {
+  transform: translateY(1px);
+}
+
+.preset-controls > div {
+  display: flex;
+  gap: 4px;
+}
+
+.preset-controls > div button {
+  flex: 1;
+}
+
 .parent-item {
   display: flex;
   align-items: center;

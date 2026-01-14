@@ -22,6 +22,7 @@ class GraphViewer {
     this.bindThemeToggle();
     this.bindStartButton();
     this.bindResetButton();
+    this.bindPresetControls();
   }
 
   cleanState() {
@@ -640,6 +641,110 @@ class GraphViewer {
     
     // Update the sidebar display
     this.populateParentSidebar();
+  }
+  
+  // Preset Management Methods
+  bindPresetControls() {
+    const presetSelect = document.getElementById('preset-select');
+    const presetName = document.getElementById('preset-name');
+    const saveBtn = document.getElementById('save-preset');
+    const deleteBtn = document.getElementById('delete-preset');
+    
+    if (!presetSelect || !presetName || !saveBtn || !deleteBtn) return;
+    
+    // Load presets into dropdown
+    this.refreshPresetList();
+    
+    // Load preset when selected
+    presetSelect.addEventListener('change', () => {
+      if (presetSelect.value) {
+        this.loadPreset(presetSelect.value);
+      }
+    });
+    
+    // Save current filter as preset
+    saveBtn.addEventListener('click', () => {
+      const name = presetName.value.trim();
+      if (!name) {
+        alert('Please enter a preset name');
+        return;
+      }
+      this.savePreset(name);
+      presetName.value = '';
+    });
+    
+    // Delete selected preset
+    deleteBtn.addEventListener('click', () => {
+      if (presetSelect.value) {
+        if (confirm(`Delete preset "${presetSelect.value}"?`)) {
+          this.deletePreset(presetSelect.value);
+        }
+      }
+    });
+  }
+  
+  refreshPresetList() {
+    const presetSelect = document.getElementById('preset-select');
+    if (!presetSelect) return;
+    
+    const presets = this.getPresets();
+    
+    // Clear and repopulate
+    presetSelect.innerHTML = '<option value="">-- Select Preset --</option>';
+    Object.keys(presets).sort().forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      presetSelect.appendChild(option);
+    });
+  }
+  
+  savePreset(name) {
+    const presets = this.getPresets();
+    presets[name] = {
+      visibleParents: Array.from(this.visibleParents),
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('filterPresets', JSON.stringify(presets));
+    this.refreshPresetList();
+    
+    // Select the newly saved preset
+    const presetSelect = document.getElementById('preset-select');
+    if (presetSelect) presetSelect.value = name;
+  }
+  
+  loadPreset(name) {
+    const presets = this.getPresets();
+    const preset = presets[name];
+    if (!preset) return;
+    
+    // Update visible parents
+    this.visibleParents = new Set(preset.visibleParents);
+    
+    // Cache positions and rebuild graph
+    this.cacheNodePositions();
+    this.rebuildFilteredGraph();
+    this.restoreNodePositions();
+    
+    // Refresh display
+    if (this.renderer) {
+      this.renderer.refresh();
+    }
+    
+    // Update sidebar checkboxes
+    this.populateParentSidebar();
+  }
+  
+  deletePreset(name) {
+    const presets = this.getPresets();
+    delete presets[name];
+    localStorage.setItem('filterPresets', JSON.stringify(presets));
+    this.refreshPresetList();
+  }
+  
+  getPresets() {
+    const stored = localStorage.getItem('filterPresets');
+    return stored ? JSON.parse(stored) : {};
   }
   
   updateUI(counterText, buttonText) {
