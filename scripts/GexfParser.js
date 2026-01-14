@@ -101,8 +101,7 @@ class GexfParser {
         x: Math.random(),
         y: Math.random(),
         size: 4,
-        baseSize: 4,
-        opacity: 1
+        baseSize: 4
       });
     });
 

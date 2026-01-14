@@ -854,9 +854,6 @@ class GraphViewer {
     
     // Render results
     this.renderSearchResults(matches, sortMode);
-    
-    // Update visual highlights
-    this.updateNodeHighlights();
   }
   
   renderSearchResults(matches, sortMode) {
@@ -908,11 +905,11 @@ class GraphViewer {
       });
       
       item.addEventListener('mouseenter', () => {
-        this.highlightNode(nodeId, true);
+        this.showPingOnNode(nodeId);
       });
       
       item.addEventListener('mouseleave', () => {
-        this.highlightNode(nodeId, false);
+        this.hidePing();
       });
     });
   }
@@ -949,14 +946,9 @@ class GraphViewer {
       if (hasSearch) {
         // Dim non-matching nodes
         this.graph.setNodeAttribute(nodeId, 'opacity', isMatch ? 1 : 0.2);
-        // Slightly enlarge matching nodes
-        const baseSize = attrs.baseSize || 5;
-        this.graph.setNodeAttribute(nodeId, 'size', isMatch ? baseSize * 1.2 : baseSize);
       } else {
         // Reset to normal
         this.graph.setNodeAttribute(nodeId, 'opacity', 1);
-        const baseSize = attrs.baseSize || 5;
-        this.graph.setNodeAttribute(nodeId, 'size', baseSize);
       }
     });
     
@@ -966,25 +958,15 @@ class GraphViewer {
   highlightNode(nodeId, highlight) {
     if (!this.renderer || !this.graph || !this.graph.hasNode(nodeId)) return;
     
-    const attrs = this.graph.getNodeAttributes(nodeId);
-    const baseSize = attrs.baseSize || 5;
-    
     if (highlight) {
-      // Temporarily enlarge and brighten on hover
-      this.graph.setNodeAttribute(nodeId, 'size', baseSize * 1.5);
+      // Brighten on hover
       this.graph.setNodeAttribute(nodeId, 'opacity', 1);
     } else {
       // Restore based on search state
       const isMatch = this.matchingNodes.has(nodeId);
       const hasSearch = this.searchQuery && this.matchingNodes.size > 0;
       
-      if (hasSearch) {
-        this.graph.setNodeAttribute(nodeId, 'size', isMatch ? baseSize * 1.2 : baseSize);
-        this.graph.setNodeAttribute(nodeId, 'opacity', isMatch ? 1 : 0.2);
-      } else {
-        this.graph.setNodeAttribute(nodeId, 'size', baseSize);
-        this.graph.setNodeAttribute(nodeId, 'opacity', 1);
-      }
+      this.graph.setNodeAttribute(nodeId, 'opacity', (hasSearch && !isMatch) ? 0.2 : 1);
     }
     
     this.renderer.refresh();
@@ -997,14 +979,42 @@ class GraphViewer {
     
     if (!nodeDisplayData) return;
     
-    // Use Sigma's coordinate system (viewport coordinates)
+    // Hide ping indicator when zooming
+    this.hidePing();
+    
+    // Get current camera state
+    const currentState = this.camera.getState();
+    
+    // Use Sigma's coordinate system (viewport coordinates) and zoom in more
     this.camera.animate(
-      nodeDisplayData,
+      { ...nodeDisplayData, ratio: currentState.ratio * 0.25 },
       { duration: 600, easing: 'quadraticInOut' }
     );
+  }
+  
+  showPingOnNode(nodeId) {
+    if (!this.renderer || !this.graph || !this.graph.hasNode(nodeId)) return;
     
-    // Pulse the node
-    this.pulseNode(nodeId);
+    const pingIndicator = document.getElementById('ping-indicator');
+    if (!pingIndicator) return;
+    
+    const nodeAttrs = this.graph.getNodeAttributes(nodeId);
+    const container = document.getElementById('sigma-container');
+    const rect = container.getBoundingClientRect();
+    
+    // Get viewport position from camera
+    const viewportPos = this.renderer.graphToViewport({ x: nodeAttrs.x, y: nodeAttrs.y });
+    
+    pingIndicator.style.left = (rect.left + viewportPos.x) + 'px';
+    pingIndicator.style.top = (rect.top + viewportPos.y) + 'px';
+    pingIndicator.style.display = 'block';
+  }
+  
+  hidePing() {
+    const pingIndicator = document.getElementById('ping-indicator');
+    if (pingIndicator) {
+      pingIndicator.style.display = 'none';
+    }
   }
   
   pulseNode(nodeId) {
