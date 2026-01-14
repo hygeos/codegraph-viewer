@@ -233,6 +233,100 @@ body {
   color: var(--text-primary);
 }
 
+.grouping-mode-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--control-border);
+}
+
+.grouping-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grouping-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.grouping-radio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.grouping-radio input[type="radio"] {
+  cursor: pointer;
+  margin: 0;
+}
+
+.grouping-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.param-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.param-item label {
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 65px;
+}
+
+.param-item input[type="number"] {
+  flex: 1;
+  padding: 5px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--control-border);
+  border-radius: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.param-item input[type="number"]:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+
+.apply-btn {
+  padding: 6px 16px;
+  background: var(--button-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 0;
+  color: var(--button-text);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  align-self: stretch;
+}
+
+.apply-btn:hover {
+  background: var(--button-hover);
+}
+
+.apply-btn:active {
+  transform: translateY(1px);
+}
+
 .preset-controls {
   display: flex;
   flex-direction: column;

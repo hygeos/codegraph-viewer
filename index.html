@@ -69,6 +69,30 @@
             <button id="delete-preset" title="Delete selected preset">Delete</button>
           </div>
         </div>
+        <div class="grouping-mode-controls">
+          <div class="grouping-mode-header">
+            <span class="grouping-label">Group by:</span>
+            <label class="grouping-radio">
+              <input type="radio" name="grouping-mode" value="parent" checked />
+              Parent
+            </label>
+            <label class="grouping-radio">
+              <input type="radio" name="grouping-mode" value="prefix" />
+              Prefix
+            </label>
+          </div>
+          <div class="grouping-params">
+            <div class="param-item" id="prefix-controls">
+              <label>Prefix:</label>
+              <input type="number" id="prefix-length" min="1" max="5" value="3" />
+            </div>
+            <div class="param-item">
+              <label>Min size:</label>
+              <input type="number" id="group-threshold" min="1" max="100" value="5" />
+            </div>
+            <button id="apply-prefix" class="apply-btn">Apply</button>
+          </div>
+        </div>
         <div class="select-all-controls">
           <button id="select-all-parents" title="Show all parent groups">Select All</button>
           <button id="deselect-all-parents" title="Hide all parent groups">Deselect All</button>

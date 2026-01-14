@@ -37,6 +37,9 @@ class GraphViewer {
     /** @type {boolean} Whether graph has been initialized */
     this.isInitialized = false;
     
+    /** @type {Graph|null} Parsed graph before provider initialization */
+    this.parsedGraph = null;
+    
     // Create centralized state
     this.state = new GraphState();
     
@@ -57,6 +60,7 @@ class GraphViewer {
     this.layoutManager.bindControls();
     this.filterManager.bindControls();
     this.searchManager.bindControls();
+    this.bindGroupingModeControls();
   }
 
   /**
@@ -109,13 +113,14 @@ class GraphViewer {
     }
     
     // Parse GEXF into graph
-    const parsedGraph = GexfParser.parse(gexfContent);
+    this.parsedGraph = GexfParser.parse(gexfContent);
     
-    // Create group provider (using parent-based grouping)
-    const groupProvider = new ParentGroupProvider(parsedGraph);
+    // Determine which grouping mode to use
+    const groupingMode = document.querySelector('input[name="grouping-mode"]:checked')?.value || 'parent';
+    const groupProvider = this.createGroupProvider(groupingMode);
     
     // Initialize state with graph and provider
-    this.state.initialize(parsedGraph, groupProvider);
+    this.state.initialize(this.parsedGraph, groupProvider);
     this.state.loadedFilename = filename;
     
     // Initialize node positions with epicenter layout
@@ -147,6 +152,130 @@ class GraphViewer {
     
     // Update UI
     this.layoutManager.updateUI('Ready (0/0)', 'Start');
+  }
+
+  /**
+   * Create a group provider based on the selected mode
+   * 
+   * @param {string} mode - Either 'parent' or 'prefix'
+   * @returns {GroupProvider} Appropriate group provider instance
+   */
+  createGroupProvider(mode) {
+    const threshold = parseInt(document.getElementById('group-threshold')?.value || '3');
+    
+    if (mode === 'prefix') {
+      const letterCount = parseInt(document.getElementById('prefix-length')?.value || '3');
+      return new PrefixGroupProvider(this.parsedGraph, letterCount, threshold);
+    } else {
+      return new ParentGroupProvider(this.parsedGraph, threshold);
+    }
+  }
+
+  /**
+   * Bind grouping mode radio buttons and apply button
+   */
+  bindGroupingModeControls() {
+    const parentRadio = document.querySelector('input[name="grouping-mode"][value="parent"]');
+    const prefixRadio = document.querySelector('input[name="grouping-mode"][value="prefix"]');
+    const prefixControls = document.getElementById('prefix-controls');
+    const applyBtn = document.getElementById('apply-prefix');
+    const thresholdInput = document.getElementById('group-threshold');
+    
+    // Show/hide prefix letter control based on radio selection
+    const updatePrefixControlsVisibility = () => {
+      if (prefixControls) {
+        prefixControls.style.display = prefixRadio?.checked ? 'flex' : 'none';
+      }
+      if (applyBtn) {
+        applyBtn.style.display = prefixRadio?.checked ? 'block' : 'none';
+      }
+    };
+    
+    if (parentRadio) {
+      parentRadio.addEventListener('change', () => {
+        updatePrefixControlsVisibility();
+        if (this.parsedGraph && parentRadio.checked) {
+          this.switchGroupProvider('parent');
+        }
+      });
+    }
+    
+    if (prefixRadio) {
+      prefixRadio.addEventListener('change', () => {
+        updatePrefixControlsVisibility();
+      });
+    }
+    
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        if (this.parsedGraph && prefixRadio?.checked) {
+          this.switchGroupProvider('prefix');
+        }
+      });
+    }
+    
+    // Threshold change triggers regrouping
+    if (thresholdInput) {
+      thresholdInput.addEventListener('change', () => {
+        if (this.parsedGraph) {
+          const mode = document.querySelector('input[name="grouping-mode"]:checked')?.value || 'parent';
+          this.switchGroupProvider(mode);
+        }
+      });
+    }
+    
+    // Initialize visibility
+    updatePrefixControlsVisibility();
+  }
+
+  /**
+   * Switch to a different group provider and rebuild the graph
+   * 
+   * @param {string} mode - Either 'parent' or 'prefix'
+   */
+  switchGroupProvider(mode) {
+    if (!this.state.graph) return;
+    
+    // Cache current positions
+    this.state.cacheNodePositions();
+    
+    // Create new provider
+    const newProvider = this.createGroupProvider(mode);
+    
+    // Update state with new provider
+    this.state.groupProvider = newProvider;
+    
+    // Apply colors from new provider
+    this.state.graph.forEachNode((node, attrs) => {
+      const group = newProvider.getNodeGroup(node, attrs);
+      const color = newProvider.getGroupColor(group);
+      this.state.setNodeAttribute(node, 'color', color);
+    });
+    
+    this.state.fullGraph.forEachNode((node, attrs) => {
+      const group = newProvider.getNodeGroup(node, attrs);
+      const color = newProvider.getGroupColor(group);
+      this.state.fullGraph.setNodeAttribute(node, 'color', color);
+    });
+    
+    // Reset visible groups to all groups
+    const groups = newProvider.getGroups(this.state.graph);
+    this.state.visibleGroups = new Set(groups);
+    
+    // Rebuild graph with new grouping
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+    const removeIsolated = removeIsolatedCheckbox ? removeIsolatedCheckbox.checked : false;
+    this.state.rebuildFilteredGraph(removeIsolated);
+    
+    // Restore positions
+    this.state.restoreNodePositions();
+    
+    // Update UI
+    this.renderManager.refresh();
+    this.filterManager.populateParentSidebar();
+    this.searchManager.clearSearch();
+    
+    console.log(`Switched to ${mode} grouping mode with ${groups.length} groups`);
   }
 
   /**
