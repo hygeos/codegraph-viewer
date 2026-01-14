@@ -47,10 +47,16 @@ class RenderManager {
     const labelColor = isDarkMode ? "#e0e0e0" : "#000000";
     
     this.state.renderer = new Sigma(this.state.graph, container, {
-      minCameraRatio: 0.08,  // Maximum zoom in (smaller = more zoom)
-      maxCameraRatio: 3,      // Maximum zoom out
+      minCameraRatio: 0.06,  // Maximum zoom in (smaller = more zoom)
+      maxCameraRatio: 3.5,      // Maximum zoom out
       defaultEdgeColor: edgeColor,
       labelColor: { color: labelColor },
+      // Label rendering settings
+      renderLabels: true,
+      labelRenderedSizeThreshold: 6,   // Only show labels when node is at least 6px on screen (higher = fewer labels when zoomed out)
+      labelDensity: 0.55,              // Low density to show fewer labels when zoomed out
+    //   labelGridCellSize: 100,  // Larger grid cell to reduce label collision/overlap
+      zIndex: true,  // Enable z-index to render labels on top
     });
     
     this.state.camera = this.state.renderer.getCamera();
