@@ -89,7 +89,7 @@ class ThemeManager {
    * Apply current theme to the UI
    * 
    * Adds/removes 'dark-mode' class from document body.
-   * Updates theme toggle button icon.
+   * Updates theme toggle button icon and logo.
    */
   applyTheme() {
     // Apply CSS class
@@ -99,6 +99,12 @@ class ThemeManager {
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
       themeToggle.textContent = this.isDarkMode ? '☀️' : '🌙';
+    }
+    
+    // Update logo based on theme
+    const logo = document.getElementById('hygeos-logo');
+    if (logo) {
+      logo.src = this.isDarkMode ? 'assets/logo-hygeos-white.svg' : 'assets/logo-hygeos-black.svg';
     }
   }
 

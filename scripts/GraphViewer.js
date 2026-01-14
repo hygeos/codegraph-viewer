@@ -161,7 +161,9 @@ class GraphViewer {
    * @returns {GroupProvider} Appropriate group provider instance
    */
   createGroupProvider(mode) {
-    const threshold = parseInt(document.getElementById('group-threshold')?.value || '3');
+    const thresholdInput = document.getElementById('group-threshold');
+    // Use threshold only for prefix mode, use 1 (no grouping) for parent mode
+    const threshold = mode === 'prefix' ? parseInt(thresholdInput?.value || '3') : 1;
     
     if (mode === 'prefix') {
       const letterCount = parseInt(document.getElementById('prefix-length')?.value || '3');
@@ -178,22 +180,27 @@ class GraphViewer {
     const parentRadio = document.querySelector('input[name="grouping-mode"][value="parent"]');
     const prefixRadio = document.querySelector('input[name="grouping-mode"][value="prefix"]');
     const prefixControls = document.getElementById('prefix-controls');
+    const thresholdControls = document.getElementById('threshold-controls');
     const applyBtn = document.getElementById('apply-prefix');
     const thresholdInput = document.getElementById('group-threshold');
     
-    // Show/hide prefix letter control based on radio selection
-    const updatePrefixControlsVisibility = () => {
+    // Show/hide prefix and threshold controls based on radio selection
+    const updateControlsVisibility = () => {
+      const isPrefixMode = prefixRadio?.checked;
       if (prefixControls) {
-        prefixControls.style.display = prefixRadio?.checked ? 'flex' : 'none';
+        prefixControls.style.display = isPrefixMode ? 'flex' : 'none';
+      }
+      if (thresholdControls) {
+        thresholdControls.style.display = isPrefixMode ? 'flex' : 'none';
       }
       if (applyBtn) {
-        applyBtn.style.display = prefixRadio?.checked ? 'block' : 'none';
+        applyBtn.style.display = isPrefixMode ? 'block' : 'none';
       }
     };
     
     if (parentRadio) {
       parentRadio.addEventListener('change', () => {
-        updatePrefixControlsVisibility();
+        updateControlsVisibility();
         if (this.parsedGraph && parentRadio.checked) {
           this.switchGroupProvider('parent');
         }
@@ -202,7 +209,7 @@ class GraphViewer {
     
     if (prefixRadio) {
       prefixRadio.addEventListener('change', () => {
-        updatePrefixControlsVisibility();
+        updateControlsVisibility();
       });
     }
     
@@ -225,7 +232,7 @@ class GraphViewer {
     }
     
     // Initialize visibility
-    updatePrefixControlsVisibility();
+    updateControlsVisibility();
   }
 
   /**

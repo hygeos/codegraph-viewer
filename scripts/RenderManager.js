@@ -112,7 +112,7 @@ class RenderManager {
           const fileLine = attrs.line ? `${attrs.file}:${attrs.line}` : attrs.file;
           lines.push({ text: `File: ${fileLine}`, isBold: false });
         }
-        lines.push({ text: `Subcalls: ${outDegree}`, isBold: false });
+        lines.push({ text: `Calls: ${outDegree}`, isBold: false });
         lines.push({ text: `Called by: ${inDegree}`, isBold: false });
         
         // Calculate max width
