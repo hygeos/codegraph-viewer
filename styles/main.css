@@ -37,6 +37,26 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.disclaimer-banner {
+  background-color: #ff4b33;
+  color: #000000;
+  padding: 8px 15px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 10px -20px -20px -20px;
+  border-radius: 0;
+}
+
+.disclaimer-banner a {
+  color: #000000;
+  text-decoration: underline;
+}
+
+.disclaimer-banner a:hover {
+  color: #333333;
+}
+
 .main-container {
   display: flex;
   gap: 10px;

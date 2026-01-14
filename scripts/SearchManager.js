@@ -295,3 +295,4 @@ class SearchManager {
     return div.innerHTML;
   }
 }
+
