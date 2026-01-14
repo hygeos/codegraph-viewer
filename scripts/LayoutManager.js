@@ -205,11 +205,16 @@ class LayoutManager {
     
     const startIteration = this.completedIterations;
     
+    // Get IPF (iterations per frame) from UI
+    const ipfInput = document.getElementById('ipf');
+    const ipf = ipfInput ? parseInt(ipfInput.value) || 1 : 1;
+    
     // Apply force layout with callbacks
     const result = await this.forceLayout.apply(
       this.state.graph,
       iterations,
       startIteration,
+      ipf,
       // Stop check callback
       () => !this.layoutRunning,
       // Progress callback (called each iteration)

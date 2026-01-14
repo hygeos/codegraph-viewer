@@ -416,7 +416,7 @@ input[type="checkbox"] {
 
 #ping-indicator {
   position: absolute;
-  font-size: 36px;
+  font-size: 48px;
   pointer-events: none;
   display: none;
   z-index: 999;

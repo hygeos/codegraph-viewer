@@ -24,12 +24,13 @@ class GraphForce {
    * @param {Object} graph - The graphology graph object
    * @param {Number} iterations - Number of iterations to run
    * @param {Number} startIteration - Starting iteration count (for continuing)
+   * @param {Number} ipf - Iterations per frame (how many iterations between refreshes)
    * @param {Function} shouldStop - Callback to check if layout should stop
    * @param {Function} onIteration - Callback called on each iteration with (iter, absoluteIter)
    * @param {Function} onRefresh - Callback called when positions should be updated
    * @returns {Object} - Object with final positions
    */
-  async apply(graph, iterations, startIteration = 0, shouldStop, onIteration, onRefresh) {
+  async apply(graph, iterations, startIteration = 0, ipf = 1, shouldStop, onIteration, onRefresh) {
     const nodes = graph.nodes();
     const positions = {};
     const velocities = {};
@@ -59,8 +60,8 @@ class GraphForce {
         onIteration(iter, absoluteIter);
       }
       
-      // Update rendering periodically
-      if (iter % this.refreshRate === 0 && onRefresh) {
+      // Update rendering periodically based on ipf
+      if (iter % ipf === 0 && onRefresh) {
         await onRefresh(positions);
       }
       
