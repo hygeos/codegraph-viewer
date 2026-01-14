@@ -69,10 +69,11 @@ class FilterManager {
       this.state.rebuildFilteredGraph(removeIsolated);
       
       // Initialize positions for nodes that don't have them
-      // Using epicenter method based on parent
+      // Using epicenter method based on group
       this.state.forEachNode((node, attrs) => {
         if (attrs.x === undefined || attrs.y === undefined) {
-          const position = this.calculateEpicenterPosition(attrs.parent);
+          const group = this.state.groupProvider.getNodeGroup(node, attrs);
+          const position = this.calculateEpicenterPosition(group);
           this.state.setNodeAttribute(node, 'x', position.x);
           this.state.setNodeAttribute(node, 'y', position.y);
         }
@@ -111,26 +112,26 @@ class FilterManager {
   }
 
   /**
-   * Select (show) all parent groups
+   * Select (show) all groups
    */
   selectAllParents() {
     if (!this.state.graph) return;
     
-    const parents = this.state.getParents();
-    parents.forEach(parent => {
-      this.state.visibleParents.add(parent);
+    const groups = this.state.getGroups();
+    groups.forEach(group => {
+      this.state.visibleGroups.add(group);
     });
     
     this.rebuildAndRefresh();
   }
 
   /**
-   * Deselect (hide) all parent groups
+   * Deselect (hide) all groups
    */
   deselectAllParents() {
     if (!this.state.graph) return;
     
-    this.state.visibleParents.clear();
+    this.state.visibleGroups.clear();
     this.rebuildAndRefresh();
   }
 
@@ -151,27 +152,27 @@ class FilterManager {
   }
 
   /**
-   * Calculate epicenter position for a parent
+   * Calculate epicenter position for a group
    * 
-   * Parents are arranged in a circle around the origin. Each parent's
+   * Groups are arranged in a circle around the origin. Each group's
    * epicenter is a point on this circle. New nodes get placed near their
-   * parent's epicenter with a small random offset.
+   * group's epicenter with a small random offset.
    * 
-   * @param {string} parent - Parent name
-   * @returns {{x: number, y: number}} Position near parent's epicenter
+   * @param {string} group - Group name
+   * @returns {{x: number, y: number}} Position near group's epicenter
    */
-  calculateEpicenterPosition(parent) {
-    const parents = this.state.getParents();
-    const parentIndex = parents.indexOf(parent);
+  calculateEpicenterPosition(group) {
+    const groups = this.state.getGroups();
+    const groupIndex = groups.indexOf(group);
     
-    if (parentIndex === -1) {
-      // Unknown parent: place at origin
+    if (groupIndex === -1) {
+      // Unknown group: place at origin
       return { x: 0, y: 0 };
     }
     
-    const parentCount = parents.length;
+    const groupCount = groups.length;
     const radius = 100; // Distance of epicenters from origin
-    const angle = (2 * Math.PI * parentIndex) / parentCount;
+    const angle = (2 * Math.PI * groupIndex) / groupCount;
     
     const epicenterX = radius * Math.cos(angle);
     const epicenterY = radius * Math.sin(angle);
@@ -185,50 +186,51 @@ class FilterManager {
   }
 
   /**
-   * Populate the parent sidebar with toggles and color swatches
+   * Populate the group sidebar with toggles and color swatches
    * 
-   * For each parent, displays:
+   * For each group, displays:
    * - Checkbox for visibility toggle
    * - Color swatch (clickable to change color)
-   * - Parent name
+   * - Group name
    * - Node count (from fullGraph, not filtered count)
    */
   populateParentSidebar() {
     const parentList = document.getElementById('parent-list');
     if (!parentList) return;
     
-    const parents = this.state.getParents();
-    const parentColorMap = this.state.getParentColorMap();
+    const groups = this.state.getGroups();
+    const groupColorMap = this.state.getGroupColorMap();
     
-    // Count nodes per parent from fullGraph (total count, not filtered)
-    const parentCounts = {};
-    parents.forEach(parent => parentCounts[parent] = 0);
+    // Count nodes per group from fullGraph (total count, not filtered)
+    const groupCounts = {};
+    groups.forEach(group => groupCounts[group] = 0);
     
     this.state.forEachFullGraphNode((node, attrs) => {
-      if (attrs.parent && parentCounts[attrs.parent] !== undefined) {
-        parentCounts[attrs.parent]++;
+      const group = this.state.groupProvider.getNodeGroup(node, attrs);
+      if (groupCounts[group] !== undefined) {
+        groupCounts[group]++;
       }
     });
     
     // Clear existing content
     parentList.innerHTML = '';
     
-    // Create parent items
-    parents.forEach(parent => {
-      const item = this.createParentItem(parent, parentColorMap[parent] || '#666666', parentCounts[parent] || 0);
+    // Create group items
+    groups.forEach(group => {
+      const item = this.createParentItem(group, groupColorMap[group] || '#666666', groupCounts[group] || 0);
       parentList.appendChild(item);
     });
   }
 
   /**
-   * Create a single parent sidebar item
+   * Create a single group sidebar item
    * 
-   * @param {string} parent - Parent name
-   * @param {string} color - Hex color for this parent
-   * @param {number} count - Number of nodes in this parent
-   * @returns {HTMLElement} DOM element for the parent item
+   * @param {string} group - Group name
+   * @param {string} color - Hex color for this group
+   * @param {number} count - Number of nodes in this group
+   * @returns {HTMLElement} DOM element for the group item
    */
-  createParentItem(parent, color, count) {
+  createParentItem(group, color, count) {
     const item = document.createElement('div');
     item.className = 'parent-item';
     
@@ -236,10 +238,10 @@ class FilterManager {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.className = 'parent-checkbox';
-    checkbox.checked = this.state.visibleParents.has(parent);
+    checkbox.checked = this.state.visibleGroups.has(group);
     checkbox.title = 'Toggle visibility';
     checkbox.addEventListener('change', () => {
-      this.toggleParentVisibility(parent, checkbox.checked);
+      this.toggleParentVisibility(group, checkbox.checked);
     });
     
     // Color swatch (clickable)
@@ -248,16 +250,16 @@ class FilterManager {
     swatch.style.backgroundColor = color;
     swatch.title = 'Click to change color';
     swatch.addEventListener('click', () => {
-      this.openColorPicker(parent, color);
+      this.openColorPicker(group, color);
     });
     
-    // Parent info (name and count)
+    // Group info (name and count)
     const info = document.createElement('div');
     info.className = 'parent-info';
     
     const name = document.createElement('div');
     name.className = 'parent-name';
-    name.textContent = parent;
+    name.textContent = group;
     
     const countLabel = document.createElement('div');
     countLabel.className = 'parent-count';
@@ -274,16 +276,16 @@ class FilterManager {
   }
 
   /**
-   * Toggle visibility of a parent group
+   * Toggle visibility of a group
    * 
    * Follows the cache-rebuild-restore cycle to preserve positions.
    * The force layout (if running) continues automatically with the new graph.
    * 
-   * @param {string} parent - Parent to toggle
+   * @param {string} group - Group to toggle
    * @param {boolean} visible - Whether to show (true) or hide (false)
    */
-  toggleParentVisibility(parent, visible) {
-    this.state.toggleParentVisibility(parent, visible);
+  toggleParentVisibility(group, visible) {
+    this.state.toggleGroupVisibility(group, visible);
     
     // Cache-rebuild-restore cycle
     this.state.cacheNodePositions();
@@ -301,15 +303,15 @@ class FilterManager {
   }
 
   /**
-   * Open native color picker for a parent
+   * Open native color picker for a group
    * 
    * Creates a temporary hidden <input type="color"> element, triggers it,
-   * and updates the parent color if the user selects a new one.
+   * and updates the group color if the user selects a new one.
    * 
-   * @param {string} parent - Parent to change color for
+   * @param {string} group - Group to change color for
    * @param {string} currentColor - Current hex color
    */
-  openColorPicker(parent, currentColor) {
+  openColorPicker(group, currentColor) {
     const input = document.createElement('input');
     input.type = 'color';
     input.value = currentColor;
@@ -319,7 +321,7 @@ class FilterManager {
     
     input.addEventListener('change', (e) => {
       const newColor = e.target.value;
-      this.updateParentColor(parent, newColor);
+      this.updateParentColor(group, newColor);
       document.body.removeChild(input);
     });
     
@@ -336,20 +338,21 @@ class FilterManager {
   }
 
   /**
-   * Update color for all nodes of a parent
+   * Update color for all nodes of a group
    * 
-   * @param {string} parent - Parent to update
+   * @param {string} group - Group to update
    * @param {string} newColor - New hex color
    */
-  updateParentColor(parent, newColor) {
-    // Update the color map
-    const parentColorMap = this.state.getParentColorMap();
-    parentColorMap[parent] = newColor;
-    this.state.setParentColorMap(parentColorMap);
+  updateParentColor(group, newColor) {
+    // Use the group provider to update colors
+    if (this.state.groupProvider) {
+      this.state.groupProvider.setGroupColor(group, newColor);
+    }
     
-    // Update all nodes with this parent
+    // Update visible nodes in the working graph
     this.state.forEachNode((node, attrs) => {
-      if (attrs.parent === parent) {
+      const nodeGroup = this.state.groupProvider.getNodeGroup(node, attrs);
+      if (nodeGroup === group) {
         this.state.setNodeAttribute(node, 'color', newColor);
       }
     });
@@ -364,7 +367,7 @@ class FilterManager {
    * Bind preset management controls
    * 
    * Presets store:
-   * - visibleParents: Array of visible parent names
+   * - visibleGroups: Array of visible group names
    * - removeIsolated: Boolean for isolated node filter
    * - timestamp: ISO string for when preset was saved
    */
@@ -432,7 +435,7 @@ class FilterManager {
    * 
    * Preset schema:
    * {
-   *   visibleParents: string[],
+   *   visibleGroups: string[],
    *   removeIsolated: boolean,
    *   timestamp: string (ISO)
    * }
@@ -444,7 +447,7 @@ class FilterManager {
     const removeIsolatedCheckbox = document.getElementById('remove-isolated');
     
     presets[name] = {
-      visibleParents: Array.from(this.state.visibleParents),
+      visibleGroups: Array.from(this.state.visibleGroups),
       removeIsolated: removeIsolatedCheckbox ? removeIsolatedCheckbox.checked : true,
       timestamp: new Date().toISOString()
     };
@@ -469,8 +472,9 @@ class FilterManager {
     const preset = presets[name];
     if (!preset) return;
     
-    // Update visible parents
-    this.state.visibleParents = new Set(preset.visibleParents);
+    // Support both old (visibleParents) and new (visibleGroups) preset format
+    const visibleItems = preset.visibleGroups || preset.visibleParents || [];
+    this.state.visibleGroups = new Set(visibleItems);
     
     // Update remove isolated checkbox
     const removeIsolatedCheckbox = document.getElementById('remove-isolated');

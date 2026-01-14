@@ -22,8 +22,11 @@ class GraphState {
     /** @type {Object.<string, {x: number, y: number}>} Position cache for all nodes (visible + hidden) */
     this.nodePositions = {};
     
-    /** @type {Set<string>} Set of currently visible parent names */
-    this.visibleParents = new Set();
+    /** @type {Set<string>} Set of currently visible group names */
+    this.visibleGroups = new Set();
+    
+    /** @type {GroupProvider|null} Active grouping strategy */
+    this.groupProvider = null;
     
     /** @type {Sigma|null} Sigma.js renderer instance */
     this.renderer = null;
@@ -36,18 +39,34 @@ class GraphState {
   }
 
   /**
-   * Initialize graph state with parsed GEXF data
-   * Creates both the working graph and full backup, initializes visible parents
+   * Initialize graph state with parsed GEXF data and group provider
+   * Creates both the working graph and full backup, initializes visible groups
    * 
    * @param {Graph} parsedGraph - Graph instance from GexfParser
+   * @param {GroupProvider} groupProvider - Grouping strategy instance
    */
-  initialize(parsedGraph) {
+  initialize(parsedGraph, groupProvider) {
     this.graph = parsedGraph;
     this.fullGraph = parsedGraph.copy();
+    this.groupProvider = groupProvider;
     
-    // Initialize all parents as visible
-    const parents = this.graph.getAttribute('parents') || [];
-    this.visibleParents = new Set(parents);
+    // Apply colors from group provider to all nodes
+    this.graph.forEachNode((node, attrs) => {
+      const group = this.groupProvider.getNodeGroup(node, attrs);
+      const color = this.groupProvider.getGroupColor(group);
+      this.graph.setNodeAttribute(node, 'color', color);
+    });
+    
+    // Also apply to fullGraph
+    this.fullGraph.forEachNode((node, attrs) => {
+      const group = this.groupProvider.getNodeGroup(node, attrs);
+      const color = this.groupProvider.getGroupColor(group);
+      this.fullGraph.setNodeAttribute(node, 'color', color);
+    });
+    
+    // Initialize all groups as visible
+    const groups = this.groupProvider.getGroups(this.graph);
+    this.visibleGroups = new Set(groups);
     
     this.nodePositions = {};
   }
@@ -65,7 +84,8 @@ class GraphState {
     this.graph = null;
     this.fullGraph = null;
     this.nodePositions = {};
-    this.visibleParents = new Set();
+    this.visibleGroups = new Set();
+    this.groupProvider = null;
     this.camera = null;
     this.loadedFilename = null;
   }
@@ -122,9 +142,10 @@ class GraphState {
     // Clear current graph
     this.graph.clear();
     
-    // Add nodes from visible parents
+    // Add nodes from visible groups
     this.fullGraph.forEachNode((node, attrs) => {
-      if (this.visibleParents.has(attrs.parent)) {
+      const group = this.groupProvider.getNodeGroup(node, attrs);
+      if (this.visibleGroups.has(group)) {
         this.graph.addNode(node, { ...attrs });
       }
     });
@@ -149,45 +170,45 @@ class GraphState {
   }
 
   /**
-   * Toggle visibility of a parent group
+   * Toggle visibility of a group
    * 
-   * @param {string} parent - Parent name to toggle
+   * @param {string} group - Group name to toggle
    * @param {boolean} visible - Whether to make visible (true) or hidden (false)
    */
-  toggleParentVisibility(parent, visible) {
+  toggleGroupVisibility(group, visible) {
     if (visible) {
-      this.visibleParents.add(parent);
+      this.visibleGroups.add(group);
     } else {
-      this.visibleParents.delete(parent);
+      this.visibleGroups.delete(group);
     }
   }
 
   /**
-   * Get list of parent names from the graph
+   * Get list of group names from the group provider
    * 
-   * @returns {string[]} Array of parent names
+   * @returns {string[]} Array of group names
    */
-  getParents() {
-    return this.graph ? (this.graph.getAttribute('parents') || []) : [];
+  getGroups() {
+    return this.groupProvider ? this.groupProvider.getGroups(this.graph) : [];
   }
 
   /**
-   * Get parent color map from the graph
+   * Get group color map from the group provider
    * 
-   * @returns {Object.<string, string>} Map of parent names to hex colors
+   * @returns {Object.<string, string>} Map of group names to hex colors
    */
-  getParentColorMap() {
-    return this.graph ? (this.graph.getAttribute('parentColorMap') || {}) : {};
+  getGroupColorMap() {
+    return this.groupProvider ? this.groupProvider.getGroupColorMap() : {};
   }
 
   /**
-   * Set parent color map on the graph
+   * Set group color map on the group provider
    * 
-   * @param {Object.<string, string>} colorMap - Map of parent names to hex colors
+   * @param {Object.<string, string>} colorMap - Map of group names to hex colors
    */
-  setParentColorMap(colorMap) {
-    if (this.graph) {
-      this.graph.setAttribute('parentColorMap', colorMap);
+  setGroupColorMap(colorMap) {
+    if (this.groupProvider) {
+      this.groupProvider.setGroupColorMap(colorMap);
     }
   }
 

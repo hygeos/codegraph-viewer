@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="styles/main.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+    <script src="scripts/GroupProvider.js"></script>
     <script src="scripts/GexfParser.js"></script>
     <script src="scripts/GraphForce.js"></script>
     <!-- New modular components -->
@@ -67,15 +68,15 @@
             <button id="save-preset" title="Save current filter as preset">Save</button>
             <button id="delete-preset" title="Delete selected preset">Delete</button>
           </div>
-          <label class="isolated-filter">
-            <input type="checkbox" id="remove-isolated" checked />
-            Remove isolated nodes
-          </label>
         </div>
         <div class="select-all-controls">
           <button id="select-all-parents" title="Show all parent groups">Select All</button>
           <button id="deselect-all-parents" title="Hide all parent groups">Deselect All</button>
         </div>
+        <label class="isolated-filter">
+          <input type="checkbox" id="remove-isolated" checked />
+          Remove isolated nodes
+        </label>
         <div id="parent-list"></div>
       </div>
     </div>

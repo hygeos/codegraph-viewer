@@ -91,12 +91,13 @@ class GraphViewer {
    * Steps:
    * 1. Clean previous state if reloading
    * 2. Parse GEXF and initialize GraphState
-   * 3. Initialize node positions (epicenter-based)
-   * 4. Setup Sigma renderer
-   * 5. Bind controls (first time only)
-   * 6. Populate parent sidebar
-   * 7. Apply initial filters
-   * 8. Clear search
+   * 3. Create GroupProvider for node grouping
+   * 4. Initialize node positions (epicenter-based)
+   * 5. Setup Sigma renderer
+   * 6. Bind controls (first time only)
+   * 7. Populate group sidebar
+   * 8. Apply initial filters
+   * 9. Clear search
    * 
    * @param {string} gexfContent - GEXF XML content
    * @param {string} filename - Name of loaded file
@@ -109,7 +110,12 @@ class GraphViewer {
     
     // Parse GEXF into graph
     const parsedGraph = GexfParser.parse(gexfContent);
-    this.state.initialize(parsedGraph);
+    
+    // Create group provider (using parent-based grouping)
+    const groupProvider = new ParentGroupProvider(parsedGraph);
+    
+    // Initialize state with graph and provider
+    this.state.initialize(parsedGraph, groupProvider);
     this.state.loadedFilename = filename;
     
     // Initialize node positions with epicenter layout
@@ -130,7 +136,7 @@ class GraphViewer {
     this.renderManager.bindHoverEvents();
     this.renderManager.bindDragEvents();
     
-    // Populate parent sidebar
+    // Populate group sidebar
     this.filterManager.populateParentSidebar();
     
     // Apply initial filter state

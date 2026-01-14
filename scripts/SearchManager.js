@@ -112,10 +112,11 @@ class SearchManager {
       // Simple substring matching
       if (label.includes(this.searchQuery)) {
         this.matchingNodes.add(nodeId);
+        const group = this.state.groupProvider ? this.state.groupProvider.getNodeGroup(nodeId, attrs) : (attrs.parent || 'unknown');
         matches.push({
           id: nodeId,
           label: attrs.label || nodeId,
-          parent: attrs.parent || 'unknown',
+          parent: group,
           degree: this.state.getNodeDegree(nodeId),
           color: attrs.color
         });

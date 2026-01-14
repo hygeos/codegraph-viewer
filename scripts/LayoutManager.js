@@ -123,19 +123,19 @@ class LayoutManager {
    * Initialize node positions using epicenter-based circular layout
    * 
    * Algorithm:
-   * 1. Calculate epicenter for each parent (arranged in circle)
-   * 2. Place each node near its parent's epicenter with random offset
-   * 3. If no parents, fall back to pure random placement
+   * 1. Calculate epicenter for each group (arranged in circle)
+   * 2. Place each node near its group's epicenter with random offset
+   * 3. If no groups, fall back to pure random placement
    * 
    * Circle radius: 100 units from origin
    * Node spread radius: 30 units around epicenter
    */
   initializeNodePositions() {
-    const parents = this.state.getParents();
-    const parentCount = parents.length;
+    const groups = this.state.getGroups();
+    const groupCount = groups.length;
     
-    if (parentCount === 0) {
-      // Fallback to random if no parents
+    if (groupCount === 0) {
+      // Fallback to random if no groups
       this.state.forEachNode((node) => {
         this.state.setNodeAttribute(node, 'x', Math.random() * 200 - 100);
         this.state.setNodeAttribute(node, 'y', Math.random() * 200 - 100);
@@ -147,20 +147,20 @@ class LayoutManager {
     const radius = 100; // Distance of epicenters from origin
     const epicenters = {};
     
-    parents.forEach((parent, index) => {
-      const angle = (2 * Math.PI * index) / parentCount;
-      epicenters[parent] = {
+    groups.forEach((group, index) => {
+      const angle = (2 * Math.PI * index) / groupCount;
+      epicenters[group] = {
         x: radius * Math.cos(angle),
         y: radius * Math.sin(angle)
       };
     });
     
-    // Position nodes around their parent's epicenter
+    // Position nodes around their group's epicenter
     const spreadRadius = 30; // How far nodes spread from epicenter
     
     this.state.forEachNode((node, attrs) => {
-      const parent = attrs.parent || 'unknown';
-      const epicenter = epicenters[parent] || { x: 0, y: 0 };
+      const group = this.state.groupProvider.getNodeGroup(node, attrs);
+      const epicenter = epicenters[group] || { x: 0, y: 0 };
       
       // Random offset around epicenter
       const offsetAngle = Math.random() * 2 * Math.PI;

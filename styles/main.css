@@ -251,6 +251,7 @@ body {
   border-radius: 3px;
   color: var(--text-primary);
   font-size: 12px;
+  box-sizing: border-box;
 }
 
 .preset-controls select:focus,
@@ -263,7 +264,7 @@ body {
   padding: 6px 12px;
   background: var(--button-bg);
   border: 1px solid var(--control-border);
-  border-radius: 3px;
+  border-radius: 0;
   color: var(--button-text);
   cursor: pointer;
   font-size: 12px;
@@ -287,18 +288,21 @@ body {
   flex: 1;
 }
 
-.preset-controls .isolated-filter {
+.isolated-filter {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--text-primary);
   cursor: pointer;
-  padding: 4px 0;
-  margin-top: 4px;
+  padding: 8px;
+  margin: 0;
+  margin-top: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--control-border);
 }
 
-.preset-controls .isolated-filter input[type="checkbox"] {
+.isolated-filter input[type="checkbox"] {
   cursor: pointer;
   margin: 0;
 }
@@ -317,7 +321,7 @@ body {
   background: var(--button-bg);
   color: var(--button-text);
   border: 1px solid var(--control-border);
-  border-radius: 3px;
+  border-radius: 0;
   cursor: pointer;
   transition: background-color 0.2s;
 }
