@@ -25,10 +25,12 @@ class FilterManager {
   /**
    * @param {GraphState} state - Shared graph state instance
    * @param {RenderManager} renderManager - Render manager for refresh operations
+   * @param {LayoutManager} layoutManager - Layout manager for position initialization
    */
-  constructor(state, renderManager) {
+  constructor(state, renderManager, layoutManager = null) {
     this.state = state;
     this.renderManager = renderManager;
+    this.layoutManager = layoutManager;
     
     /** @type {string} localStorage key for filter presets */
     this.presetsStorageKey = 'filterPresets';
@@ -287,6 +289,11 @@ class FilterManager {
   toggleParentVisibility(group, visible) {
     this.state.toggleGroupVisibility(group, visible);
     
+    // Reinitialize positions with new group layout
+    if (this.layoutManager) {
+      this.layoutManager.initializeNodePositions();
+    }
+    
     // Cache-rebuild-restore cycle
     this.state.cacheNodePositions();
     
@@ -480,6 +487,11 @@ class FilterManager {
     const removeIsolatedCheckbox = document.getElementById('remove-isolated');
     if (removeIsolatedCheckbox) {
       removeIsolatedCheckbox.checked = preset.removeIsolated !== undefined ? preset.removeIsolated : true;
+    }
+    
+    // Reinitialize positions with new group layout
+    if (this.layoutManager) {
+      this.layoutManager.initializeNodePositions();
     }
     
     // Cache-rebuild-restore cycle

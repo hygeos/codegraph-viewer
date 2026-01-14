@@ -46,8 +46,8 @@ class GraphViewer {
     // Create managers (order matters for dependencies)
     this.renderManager = new RenderManager(this.state);
     this.searchManager = new SearchManager(this.state, this.renderManager);
-    this.filterManager = new FilterManager(this.state, this.renderManager);
     this.layoutManager = new LayoutManager(this.state, this.renderManager);
+    this.filterManager = new FilterManager(this.state, this.renderManager, this.layoutManager);
     this.themeManager = new ThemeManager(this.renderManager);
     this.fileManager = new FileManager(
       (content, filename) => this.handleFileLoaded(content, filename),

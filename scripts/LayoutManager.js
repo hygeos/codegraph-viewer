@@ -120,15 +120,17 @@ class LayoutManager {
   }
 
   /**
-   * Initialize node positions using epicenter-based circular layout
+   * Initialize node positions using adaptive weighted circular layout
    * 
    * Algorithm:
-   * 1. Calculate epicenter for each group (arranged in circle)
-   * 2. Place each node near its group's epicenter with random offset
-   * 3. If no groups, fall back to pure random placement
+   * 1. Count nodes per group
+   * 2. Calculate statistics (mean, median, std deviation)
+   * 3. Assign angular weights based on group size relative to statistics
+   * 4. Place epicenters on circle with weighted spacing
+   * 5. Place nodes around their group's epicenter with random offset
    * 
    * Circle radius: 100 units from origin
-   * Node spread radius: 30 units around epicenter
+   * Node spread radius: Adaptive based on group size
    */
   initializeNodePositions() {
     const groups = this.state.getGroups();
@@ -143,24 +145,40 @@ class LayoutManager {
       return;
     }
     
-    // Calculate epicenters in a circular arrangement
-    const radius = 100; // Distance of epicenters from origin
-    const epicenters = {};
-    
-    groups.forEach((group, index) => {
-      const angle = (2 * Math.PI * index) / groupCount;
-      epicenters[group] = {
-        x: radius * Math.cos(angle),
-        y: radius * Math.sin(angle)
-      };
-    });
-    
-    // Position nodes around their group's epicenter
-    const spreadRadius = 30; // How far nodes spread from epicenter
+    // Count nodes per group
+    const groupCounts = {};
+    groups.forEach(group => groupCounts[group] = 0);
     
     this.state.forEachNode((node, attrs) => {
       const group = this.state.groupProvider.getNodeGroup(node, attrs);
+      if (groupCounts[group] !== undefined) {
+        groupCounts[group]++;
+      }
+    });
+    
+    // Calculate statistics
+    const counts = Object.values(groupCounts);
+    const stats = this.calculateGroupStatistics(counts);
+    
+    // Assign angular weights based on size
+    const weights = {};
+    groups.forEach(group => {
+      const size = groupCounts[group] || 1;
+      weights[group] = this.calculateAngularWeight(size, stats);
+    });
+    
+    // Calculate epicenter positions with weighted angular distribution
+    const radius = 100;
+    const epicenters = this.calculateWeightedEpicenters(groups, weights, radius);
+    
+    // Position nodes around their group's epicenter
+    this.state.forEachNode((node, attrs) => {
+      const group = this.state.groupProvider.getNodeGroup(node, attrs);
       const epicenter = epicenters[group] || { x: 0, y: 0 };
+      const groupSize = groupCounts[group] || 1;
+      
+      // Small consistent spread radius - nodes stay tight
+      const spreadRadius = 8 + Math.sqrt(groupSize) * 0.3;
       
       // Random offset around epicenter
       const offsetAngle = Math.random() * 2 * Math.PI;
@@ -172,6 +190,107 @@ class LayoutManager {
       this.state.setNodeAttribute(node, 'x', x);
       this.state.setNodeAttribute(node, 'y', y);
     });
+  }
+
+  /**
+   * Calculate statistics for group sizes
+   * 
+   * @param {number[]} counts - Array of node counts per group
+   * @returns {Object} Statistics object with mean, median, std
+   */
+  calculateGroupStatistics(counts) {
+    if (counts.length === 0) return { mean: 0, median: 0, std: 0 };
+    
+    // Mean
+    const mean = counts.reduce((sum, c) => sum + c, 0) / counts.length;
+    
+    // Median
+    const sorted = [...counts].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0 
+      ? (sorted[mid - 1] + sorted[mid]) / 2 
+      : sorted[mid];
+    
+    // Standard deviation
+    const variance = counts.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / counts.length;
+    const std = Math.sqrt(variance);
+    
+    return { mean, median, std };
+  }
+
+  /**
+   * Calculate angular weight for a group based on its size
+   * 
+   * Uses statistics to adaptively scale weights:
+   * - Small groups (< median - 0.5*std): 0.6x baseline
+   * - Medium groups (within ±0.5*std): scaled by size/median
+   * - Large groups (> median + 0.5*std): scaled up to 3.5x for maximum angular space
+   * 
+   * Large groups get substantial angular space on the circle.
+   * 
+   * @param {number} size - Number of nodes in group
+   * @param {Object} stats - Statistics object {mean, median, std}
+   * @returns {number} Angular weight (multiplier)
+   */
+  calculateAngularWeight(size, stats) {
+    const { median, std } = stats;
+    
+    // Avoid division by zero
+    if (median === 0) return 1.0;
+    
+    const lowerBound = median - 0.5 * std;
+    const upperBound = median + 0.5 * std;
+    
+    if (size < lowerBound) {
+      // Small group: reduced angular space
+      return 0.6;
+    } else if (size > upperBound) {
+      // Large group: much more angular space on circle
+      const scale = size / median;
+      return Math.min(scale, 3.5);
+    } else {
+      // Medium group: proportional to median
+      return size / median;
+    }
+  }
+
+  /**
+   * Calculate epicenter positions with weighted angular distribution
+   * 
+   * Each group gets an angular portion proportional to its weight.
+   * Groups are placed sequentially around the circle.
+   * 
+   * @param {string[]} groups - Array of group names
+   * @param {Object} weights - Map of group to weight
+   * @param {number} radius - Circle radius
+   * @returns {Object} Map of group to {x, y} position
+   */
+  calculateWeightedEpicenters(groups, weights, radius) {
+    const epicenters = {};
+    
+    // Calculate total weight
+    const totalWeight = groups.reduce((sum, group) => sum + weights[group], 0);
+    
+    // Place groups sequentially around circle
+    let currentAngle = 0;
+    
+    groups.forEach(group => {
+      const weight = weights[group];
+      const angularPortion = (weight / totalWeight) * 2 * Math.PI;
+      
+      // Place epicenter at the middle of its angular portion
+      const angle = currentAngle + angularPortion / 2;
+      
+      epicenters[group] = {
+        x: radius * Math.cos(angle),
+        y: radius * Math.sin(angle)
+      };
+      
+      // Advance to next portion
+      currentAngle += angularPortion;
+    });
+    
+    return epicenters;
   }
 
   /**

@@ -3,7 +3,7 @@ class GraphForce {
     // Force algorithm parameters
     this.k = 6; // Target edge length
     this.c_rep_max = 1500; // Repulsion constant maximum
-    this.c_rep_min = 50;   // Repulsion constant minimum
+    this.c_rep_min = 500;   // Repulsion constant minimum
     this.c_spring = 0.075; // Spring constant
     this.maxRepulsionDist = 100; // Only calculate repulsion within this distance
     this.refreshRate = 1; // Refresh every N iterations
