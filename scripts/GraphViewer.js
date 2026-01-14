@@ -6,6 +6,9 @@ class GraphViewer {
     this.fullGraph = null; // Complete backup with ALL nodes
     this.nodePositions = {}; // Position cache for all nodes (visible + hidden)
     this.visibleParents = new Set(); // Set of currently visible parent names
+    this.searchQuery = ''; // Current search query
+    this.searchDebounceTimer = null; // Debounce timer for search
+    this.matchingNodes = new Set(); // Nodes matching current search
     this.layoutRunning = false;
     this.isInitialized = false;
     this.loadedFilename = null;
@@ -23,6 +26,7 @@ class GraphViewer {
     this.bindStartButton();
     this.bindResetButton();
     this.bindPresetControls();
+    this.bindSearchControls();
   }
 
   cleanState() {
@@ -39,6 +43,8 @@ class GraphViewer {
     this.fullGraph = null;
     this.nodePositions = {};
     this.visibleParents = new Set();
+    this.searchQuery = '';
+    this.matchingNodes = new Set();
     this.camera = null;
     
     this.updateUI('Loading...', 'Start');
@@ -84,6 +90,13 @@ class GraphViewer {
       if (removeIsolatedCheckbox && removeIsolatedCheckbox.checked) {
         this.rebuildFilteredGraph();
         this.renderer.refresh();
+      }
+      
+      // Clear search on new graph load
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) {
+        searchInput.value = '';
+        this.performSearch('');
       }
       
       this.updateUI('Ready');
@@ -340,6 +353,7 @@ class GraphViewer {
   bindControls() {
     const zoomInBtn = document.getElementById("zoom-in");
     const zoomOutBtn = document.getElementById("zoom-out");
+    const centerViewBtn = document.getElementById("center-view");
     const removeIsolatedCheckbox = document.getElementById("remove-isolated");
 
     zoomInBtn.addEventListener("click", () => {
@@ -349,6 +363,18 @@ class GraphViewer {
     zoomOutBtn.addEventListener("click", () => {
       this.camera.animatedUnzoom({ duration: 600 });
     });
+    
+    if (centerViewBtn) {
+      centerViewBtn.addEventListener("click", () => {
+        if (this.camera) {
+          // Reset camera to default view
+          this.camera.animate(
+            { x: 0.5, y: 0.5, ratio: 1, angle: 0 },
+            { duration: 600, easing: 'quadraticInOut' }
+          );
+        }
+      });
+    }
     
     removeIsolatedCheckbox.addEventListener("change", () => {
       if (!this.graph) return;
@@ -749,6 +775,265 @@ class GraphViewer {
   getPresets() {
     const stored = localStorage.getItem('filterPresets');
     return stored ? JSON.parse(stored) : {};
+  }
+  
+  // Search functionality
+  bindSearchControls() {
+    const searchInput = document.getElementById('search-input');
+    const searchClear = document.getElementById('search-clear');
+    const sortRadios = document.querySelectorAll('input[name="search-sort"]');
+    
+    if (!searchInput) return;
+    
+    // Debounced search on input
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = setTimeout(() => {
+        this.performSearch(e.target.value);
+      }, 150);
+    });
+    
+    // Clear search
+    if (searchClear) {
+      searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        this.performSearch('');
+      });
+    }
+    
+    // Sort change
+    sortRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (this.searchQuery) {
+          this.performSearch(this.searchQuery);
+        }
+      });
+    });
+  }
+  
+  performSearch(query) {
+    this.searchQuery = query.toLowerCase().trim();
+    this.matchingNodes.clear();
+    
+    const resultsContainer = document.getElementById('search-results');
+    if (!resultsContainer || !this.graph) return;
+    
+    // If empty query, clear highlights and show nothing
+    if (!this.searchQuery) {
+      resultsContainer.innerHTML = '';
+      this.updateNodeHighlights();
+      return;
+    }
+    
+    // Find matching nodes (only search visible nodes in current graph)
+    const matches = [];
+    this.graph.forEachNode((nodeId, attrs) => {
+      const label = (attrs.label || nodeId).toLowerCase();
+      if (label.includes(this.searchQuery)) {
+        this.matchingNodes.add(nodeId);
+        matches.push({
+          id: nodeId,
+          label: attrs.label || nodeId,
+          parent: attrs.parent || 'unknown',
+          degree: this.graph.degree(nodeId),
+          color: attrs.color
+        });
+      }
+    });
+    
+    // Sort matches
+    const sortMode = document.querySelector('input[name="search-sort"]:checked')?.value || 'alpha';
+    if (sortMode === 'alpha') {
+      matches.sort((a, b) => a.label.localeCompare(b.label));
+    } else if (sortMode === 'parent') {
+      matches.sort((a, b) => {
+        const parentCompare = a.parent.localeCompare(b.parent);
+        return parentCompare !== 0 ? parentCompare : a.label.localeCompare(b.label);
+      });
+    }
+    
+    // Render results
+    this.renderSearchResults(matches, sortMode);
+    
+    // Update visual highlights
+    this.updateNodeHighlights();
+  }
+  
+  renderSearchResults(matches, sortMode) {
+    const resultsContainer = document.getElementById('search-results');
+    if (!resultsContainer) return;
+    
+    if (matches.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="search-empty">
+          No nodes match "${this.searchQuery}"
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '';
+    
+    if (sortMode === 'parent') {
+      // Group by parent
+      const byParent = {};
+      matches.forEach(match => {
+        if (!byParent[match.parent]) byParent[match.parent] = [];
+        byParent[match.parent].push(match);
+      });
+      
+      Object.keys(byParent).sort().forEach(parent => {
+        html += `<div class="search-parent-group">`;
+        html += `<div class="search-parent-header">${parent}</div>`;
+        byParent[parent].forEach(match => {
+          html += this.renderSearchResultItem(match);
+        });
+        html += `</div>`;
+      });
+    } else {
+      // Simple list
+      matches.forEach(match => {
+        html += this.renderSearchResultItem(match);
+      });
+    }
+    
+    resultsContainer.innerHTML = html;
+    
+    // Bind click events
+    resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+      const nodeId = item.dataset.nodeId;
+      
+      item.addEventListener('click', () => {
+        this.zoomToNode(nodeId);
+      });
+      
+      item.addEventListener('mouseenter', () => {
+        this.highlightNode(nodeId, true);
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        this.highlightNode(nodeId, false);
+      });
+    });
+  }
+  
+  renderSearchResultItem(match) {
+    const escapedLabel = this.escapeHtml(match.label);
+    const escapedParent = this.escapeHtml(match.parent);
+    
+    return `
+      <div class="search-result-item" data-node-id="${match.id}" title="${escapedLabel}">
+        <div class="search-result-name">${escapedLabel}</div>
+        <div class="search-result-meta">
+          <span class="search-result-parent">${escapedParent}</span>
+          <span class="search-result-degree">(${match.degree})</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  updateNodeHighlights() {
+    if (!this.renderer || !this.graph) return;
+    
+    const hasSearch = this.searchQuery && this.matchingNodes.size > 0;
+    
+    this.graph.forEachNode((nodeId, attrs) => {
+      const isMatch = this.matchingNodes.has(nodeId);
+      
+      if (hasSearch) {
+        // Dim non-matching nodes
+        this.graph.setNodeAttribute(nodeId, 'opacity', isMatch ? 1 : 0.2);
+        // Slightly enlarge matching nodes
+        const baseSize = attrs.baseSize || 5;
+        this.graph.setNodeAttribute(nodeId, 'size', isMatch ? baseSize * 1.2 : baseSize);
+      } else {
+        // Reset to normal
+        this.graph.setNodeAttribute(nodeId, 'opacity', 1);
+        const baseSize = attrs.baseSize || 5;
+        this.graph.setNodeAttribute(nodeId, 'size', baseSize);
+      }
+    });
+    
+    this.renderer.refresh();
+  }
+  
+  highlightNode(nodeId, highlight) {
+    if (!this.renderer || !this.graph || !this.graph.hasNode(nodeId)) return;
+    
+    const attrs = this.graph.getNodeAttributes(nodeId);
+    const baseSize = attrs.baseSize || 5;
+    
+    if (highlight) {
+      // Temporarily enlarge and brighten on hover
+      this.graph.setNodeAttribute(nodeId, 'size', baseSize * 1.5);
+      this.graph.setNodeAttribute(nodeId, 'opacity', 1);
+    } else {
+      // Restore based on search state
+      const isMatch = this.matchingNodes.has(nodeId);
+      const hasSearch = this.searchQuery && this.matchingNodes.size > 0;
+      
+      if (hasSearch) {
+        this.graph.setNodeAttribute(nodeId, 'size', isMatch ? baseSize * 1.2 : baseSize);
+        this.graph.setNodeAttribute(nodeId, 'opacity', isMatch ? 1 : 0.2);
+      } else {
+        this.graph.setNodeAttribute(nodeId, 'size', baseSize);
+        this.graph.setNodeAttribute(nodeId, 'opacity', 1);
+      }
+    }
+    
+    this.renderer.refresh();
+  }
+  
+  zoomToNode(nodeId) {
+    if (!this.camera || !this.graph || !this.graph.hasNode(nodeId)) return;
+    
+    const nodeDisplayData = this.renderer.getNodeDisplayData(nodeId);
+    
+    if (!nodeDisplayData) return;
+    
+    // Use Sigma's coordinate system (viewport coordinates)
+    this.camera.animate(
+      nodeDisplayData,
+      { duration: 600, easing: 'quadraticInOut' }
+    );
+    
+    // Pulse the node
+    this.pulseNode(nodeId);
+  }
+  
+  pulseNode(nodeId) {
+    if (!this.graph || !this.graph.hasNode(nodeId)) return;
+    
+    const attrs = this.graph.getNodeAttributes(nodeId);
+    const baseSize = attrs.baseSize || 5;
+    let pulseCount = 0;
+    
+    const pulse = () => {
+      if (pulseCount >= 6) {
+        // Reset to normal after pulses
+        const isMatch = this.matchingNodes.has(nodeId);
+        const hasSearch = this.searchQuery && this.matchingNodes.size > 0;
+        this.graph.setNodeAttribute(nodeId, 'size', 
+          hasSearch && isMatch ? baseSize * 1.2 : baseSize);
+        this.renderer.refresh();
+        return;
+      }
+      
+      const isExpanding = pulseCount % 2 === 0;
+      this.graph.setNodeAttribute(nodeId, 'size', isExpanding ? baseSize * 2 : baseSize * 1.2);
+      this.renderer.refresh();
+      
+      pulseCount++;
+      setTimeout(pulse, 150);
+    };
+    
+    pulse();
   }
   
   updateUI(counterText, buttonText) {
