@@ -40,10 +40,12 @@ class FilterManager {
    * Sets up:
    * - Remove isolated nodes checkbox
    * - Preset selector, save, and delete buttons
+   * - Select all / Deselect all buttons
    */
   bindControls() {
     this.bindIsolatedNodesFilter();
     this.bindPresetControls();
+    this.bindSelectAllControls();
   }
 
   /**
@@ -84,6 +86,68 @@ class FilterManager {
       
       this.renderManager.refresh();
     });
+  }
+
+  /**
+   * Bind the Select All / Deselect All buttons
+   * 
+   * Provides quick controls to show or hide all parent groups at once.
+   */
+  bindSelectAllControls() {
+    const selectAllBtn = document.getElementById('select-all-parents');
+    const deselectAllBtn = document.getElementById('deselect-all-parents');
+    
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => {
+        this.selectAllParents();
+      });
+    }
+    
+    if (deselectAllBtn) {
+      deselectAllBtn.addEventListener('click', () => {
+        this.deselectAllParents();
+      });
+    }
+  }
+
+  /**
+   * Select (show) all parent groups
+   */
+  selectAllParents() {
+    if (!this.state.graph) return;
+    
+    const parents = this.state.getParents();
+    parents.forEach(parent => {
+      this.state.visibleParents.add(parent);
+    });
+    
+    this.rebuildAndRefresh();
+  }
+
+  /**
+   * Deselect (hide) all parent groups
+   */
+  deselectAllParents() {
+    if (!this.state.graph) return;
+    
+    this.state.visibleParents.clear();
+    this.rebuildAndRefresh();
+  }
+
+  /**
+   * Helper method to rebuild graph and refresh display
+   * Used by select/deselect all operations
+   */
+  rebuildAndRefresh() {
+    this.state.cacheNodePositions();
+    
+    const removeIsolatedCheckbox = document.getElementById('remove-isolated');
+    const removeIsolated = removeIsolatedCheckbox ? removeIsolatedCheckbox.checked : false;
+    this.state.rebuildFilteredGraph(removeIsolated);
+    
+    this.state.restoreNodePositions();
+    this.renderManager.refresh();
+    this.populateParentSidebar();
   }
 
   /**

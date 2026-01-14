@@ -303,6 +303,33 @@ body {
   margin: 0;
 }
 
+.select-all-controls {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 0 8px;
+}
+
+.select-all-controls button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.select-all-controls button:hover {
+  background: var(--button-hover);
+}
+
+.select-all-controls button:active {
+  transform: translateY(1px);
+}
+
 .parent-item {
   display: flex;
   align-items: center;
