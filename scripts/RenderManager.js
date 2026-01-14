@@ -31,6 +31,12 @@ class RenderManager {
     
     /** @type {string|null} Node ID that ping indicator is currently tracking */
     this.activePingNodeId = null;
+    
+    /** @type {string|null} Node currently being dragged */
+    this.draggedNode = null;
+    
+    /** @type {boolean} Whether dragging is enabled */
+    this.isDragging = false;
   }
 
   /**
@@ -155,6 +161,9 @@ class RenderManager {
     if (rebindHoverCallback) {
       rebindHoverCallback();
     }
+    
+    // Rebind drag events as well
+    this.bindDragEvents();
   }
 
   /**
@@ -217,6 +226,58 @@ class RenderManager {
         this.tooltip.style.left = e.x + 10 + 'px';
         this.tooltip.style.top = e.y + 10 + 'px';
       }
+    });
+  }
+
+  /**
+   * Setup node drag and drop
+   * 
+   * Allows users to click and drag nodes to reposition them manually.
+   * Useful for fine-tuning the layout after force-directed algorithm runs.
+   */
+  bindDragEvents() {
+    if (!this.state.renderer) return;
+    
+    // Start dragging on mouse down over a node
+    this.state.renderer.on('downNode', (e) => {
+      this.isDragging = true;
+      this.draggedNode = e.node;
+      this.state.renderer.getGraph().setNodeAttribute(e.node, 'highlighted', true);
+    });
+    
+    // Update node position during drag
+    this.state.renderer.getMouseCaptor().on('mousemovebody', (e) => {
+      if (!this.isDragging || !this.draggedNode) return;
+      
+      // Get new position from mouse coordinates
+      const pos = this.state.renderer.viewportToGraph(e);
+      
+      // Update node position
+      this.state.setNodeAttribute(this.draggedNode, 'x', pos.x);
+      this.state.setNodeAttribute(this.draggedNode, 'y', pos.y);
+      
+      // Prevent camera from moving
+      e.preventSigmaDefault();
+      e.original.preventDefault();
+      e.original.stopPropagation();
+    });
+    
+    // Stop dragging on mouse up
+    this.state.renderer.getMouseCaptor().on('mouseup', () => {
+      if (this.draggedNode) {
+        this.state.renderer.getGraph().removeNodeAttribute(this.draggedNode, 'highlighted');
+        this.draggedNode = null;
+      }
+      this.isDragging = false;
+    });
+    
+    // Stop dragging if mouse leaves container
+    this.state.renderer.getMouseCaptor().on('mouseleave', () => {
+      if (this.draggedNode) {
+        this.state.renderer.getGraph().removeNodeAttribute(this.draggedNode, 'highlighted');
+        this.draggedNode = null;
+      }
+      this.isDragging = false;
     });
   }
 

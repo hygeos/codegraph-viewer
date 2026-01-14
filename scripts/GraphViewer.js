@@ -128,6 +128,7 @@ class GraphViewer {
     }
     
     this.renderManager.bindHoverEvents();
+    this.renderManager.bindDragEvents();
     
     // Populate parent sidebar
     this.filterManager.populateParentSidebar();
