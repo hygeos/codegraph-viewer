@@ -1,10 +1,10 @@
 class GexfParser {
   // Color palette for parent nodes
   static COLOR_PALETTE = [
-    "#E53935",  // Red
     "#1E88E5",  // Blue
     "#43A047",  // Green
     "#FB8C00",  // Orange
+    "#E53935",  // Red
     "#8E24AA",  // Purple
     "#00ACC1",  // Cyan
     "#FDD835",  // Yellow

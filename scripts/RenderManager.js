@@ -54,12 +54,64 @@ class RenderManager {
       // Label rendering settings
       renderLabels: true,
       labelRenderedSizeThreshold: 6,   // Only show labels when node is at least 6px on screen (higher = fewer labels when zoomed out)
-      labelDensity: 0.55,              // Low density to show fewer labels when zoomed out
-    //   labelGridCellSize: 100,  // Larger grid cell to reduce label collision/overlap
+      labelDensity: 0.35,              // Low density to show fewer labels when zoomed out
+      labelGridCellSize: 100,  // Larger grid cell to reduce label collision/overlap
       zIndex: true,  // Enable z-index to render labels on top
     });
     
     this.state.camera = this.state.renderer.getCamera();
+    
+    // Adjust label density dynamically based on zoom level
+    this.setupDynamicLabelDensity();
+  }
+
+  /**
+   * Setup dynamic label density based on zoom level
+   * 
+   * Adjusts labelDensity as the camera ratio changes:
+   * - When zoomed in (lower ratio), increase density to show more labels
+   * - When zoomed out (higher ratio), decrease density to show fewer labels
+   * 
+   * The mapping uses a logarithmic scale to provide smooth transitions
+   * across the zoom range (0.06 to 3.5).
+   */
+  setupDynamicLabelDensity() {
+    if (!this.state.camera || !this.state.renderer) return;
+    
+    const updateLabelDensity = () => {
+      const ratio = this.state.camera.ratio;
+      
+      // Map camera ratio to label density
+      // ratio 0.06 (max zoom in) -> density ~0.8-1.0 (show most labels)
+      // ratio 1.0 (default) -> density ~0.4-0.5
+      // ratio 3.5 (max zoom out) -> density ~0.1-0.2 (show fewest labels)
+      
+      // Use logarithmic interpolation for smooth transitions
+      const minRatio = 0.06;
+      const maxRatio = 3.5;
+      const minDensity = 0.15;  // When zoomed out
+      const maxDensity = 0.9;   // When zoomed in
+      
+      // Normalize ratio to 0-1 range (inverted so zoom in = higher value)
+      const normalizedRatio = 1 - Math.log(ratio / minRatio) / Math.log(maxRatio / minRatio);
+      
+      // Clamp to ensure we stay within bounds
+      const clampedRatio = Math.max(0, Math.min(1, normalizedRatio));
+      
+      // Calculate new density
+      const newDensity = minDensity + (maxDensity - minDensity) * clampedRatio;
+      
+      console.log(`Camera ratio: ${ratio.toFixed(2)}, Label density: ${newDensity.toFixed(2)}`);
+      
+      // Update the renderer's label density setting
+      this.state.renderer.setSetting('labelDensity', newDensity);
+    };
+    
+    // Update on camera updates (zoom, pan, etc.)
+    this.state.camera.on('updated', updateLabelDensity);
+    
+    // Set initial density
+    updateLabelDensity();
   }
 
   /**
