@@ -79,7 +79,7 @@ class LayoutManager {
         this.layoutRunning = false;
       } else {
         // Start or continue layout
-        const iterations = parseInt(maxIterationsInput.value) || 600;
+        const iterations = parseInt(maxIterationsInput.value) || 300;
         await this.applyForceLayout(iterations);
       }
     });

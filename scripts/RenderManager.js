@@ -25,6 +25,12 @@ class RenderManager {
     
     /** @type {HTMLElement|null} Ping indicator DOM element */
     this.pingIndicator = null;
+    
+    /** @type {number|null} Timeout ID for auto-hiding ping indicator */
+    this.pingTimeout = null;
+    
+    /** @type {string|null} Node ID that ping indicator is currently tracking */
+    this.activePingNodeId = null;
   }
 
   /**
@@ -112,6 +118,13 @@ class RenderManager {
     
     // Set initial density
     updateLabelDensity();
+    
+    // Update ping indicator position during camera movements
+    this.state.camera.on('updated', () => {
+      if (this.activePingNodeId) {
+        this.updatePingPosition(this.activePingNodeId);
+      }
+    });
   }
 
   /**
@@ -261,16 +274,27 @@ class RenderManager {
     const nodeDisplayData = this.state.renderer.getNodeDisplayData(nodeId);
     if (!nodeDisplayData) return;
     
-    // Hide ping indicator when zooming (it's no longer needed)
-    this.hidePing();
+    // Show ping indicator and start tracking node during animation
+    this.showPingOnNode(nodeId);
     
     // Get current camera ratio and zoom in more (multiply by 0.25)
     const currentState = this.state.camera.getState();
     
+    // Start camera animation
     this.state.camera.animate(
-      { ...nodeDisplayData, ratio: currentState.ratio * 0.25 },
+      { ...nodeDisplayData, ratio: currentState.ratio * 0.20 },
       { duration: 600, easing: 'quadraticInOut' }
     );
+    
+    // Clear any existing timeout
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+    }
+    
+    // Hide ping indicator after 2.5 seconds
+    this.pingTimeout = setTimeout(() => {
+      this.hidePing();
+    }, 2500);
   }
 
   /**
@@ -282,6 +306,24 @@ class RenderManager {
    * @param {string} nodeId - Node to show ping indicator on
    */
   showPingOnNode(nodeId) {
+    if (!this.state.renderer || !this.state.hasNode(nodeId)) return;
+    
+    // Clear any existing timeout when showing ping
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
+    }
+    
+    this.activePingNodeId = nodeId;
+    this.updatePingPosition(nodeId);
+  }
+  
+  /**
+   * Update ping indicator position for a specific node
+   * 
+   * @param {string} nodeId - Node to update ping position for
+   */
+  updatePingPosition(nodeId) {
     if (!this.state.renderer || !this.state.hasNode(nodeId)) return;
     
     this.pingIndicator = document.getElementById('ping-indicator');
@@ -308,6 +350,14 @@ class RenderManager {
    * Hide ping indicator
    */
   hidePing() {
+    // Clear timeout when manually hiding
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
+    }
+    
+    this.activePingNodeId = null;
+    
     this.pingIndicator = document.getElementById('ping-indicator');
     if (this.pingIndicator) {
       this.pingIndicator.style.display = 'none';
