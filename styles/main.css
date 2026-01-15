@@ -30,7 +30,7 @@ body.dark-mode {
 
 body {
   margin: 0;
-  padding: 20px;
+  padding: 10px;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: sans-serif;
@@ -38,14 +38,19 @@ body {
 }
 
 .disclaimer-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background-color: #ff333d;
   color: #000000;
   padding: 8px 15px;
   text-align: center;
   font-size: 14px;
   font-weight: bold;
-  margin: 10px -20px -20px -20px;
+  margin: 0;
   border-radius: 0;
+  z-index: 1000;
 }
 
 .disclaimer-banner a {
@@ -60,7 +65,7 @@ body {
 .main-container {
   display: flex;
   gap: 10px;
-  height: 90vh;
+  height: calc(100vh - 50px);
   position: relative;
 }
 
@@ -525,13 +530,17 @@ body {
 }
 
 .controls {
-  margin-bottom: 10px;
+  position: absolute;
+  top: 0;
+  left: 320px;
+  right: 290px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px;
   background: var(--control-bg);
   transition: background-color 0.3s ease;
+  z-index: 100;
 }
 
 #iteration-counter {
