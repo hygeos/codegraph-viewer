@@ -37,11 +37,11 @@ class ThemeManager {
   /**
    * Load theme preference from localStorage
    * 
-   * Default to light mode if no preference is saved.
+   * Default to dark mode if no preference is saved.
    */
   loadThemePreference() {
     const savedTheme = localStorage.getItem(this.storageKey);
-    this.isDarkMode = savedTheme ? savedTheme === 'dark' : false;
+    this.isDarkMode = savedTheme ? savedTheme === 'dark' : true;
   }
 
   /**

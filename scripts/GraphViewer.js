@@ -116,7 +116,20 @@ class GraphViewer {
     this.parsedGraph = GexfParser.parse(gexfContent);
     
     // Determine which grouping mode to use
-    const groupingMode = document.querySelector('input[name="grouping-mode"]:checked')?.value || 'parent';
+    // If only one parent, automatically switch to prefix mode
+    let groupingMode = document.querySelector('input[name="grouping-mode"]:checked')?.value || 'parent';
+    const uniqueParents = this.getUniqueParentCount(this.parsedGraph);
+    if (uniqueParents === 1) {
+      groupingMode = 'prefix';
+      // Update radio button selection
+      const prefixRadio = document.querySelector('input[name="grouping-mode"][value="prefix"]');
+      if (prefixRadio) {
+        prefixRadio.checked = true;
+        // Trigger visibility update for controls
+        const event = new Event('change');
+        prefixRadio.dispatchEvent(event);
+      }
+    }
     const groupProvider = this.createGroupProvider(groupingMode);
     
     // Initialize state with graph and provider
@@ -152,6 +165,21 @@ class GraphViewer {
     
     // Update UI
     this.layoutManager.updateUI('Ready (0/0)', 'Start');
+  }
+
+  /**
+   * Get the number of unique parent groups in the graph
+   * 
+   * @param {Graph} graph - The graph to analyze
+   * @returns {number} Number of unique parent values
+   */
+  getUniqueParentCount(graph) {
+    const parents = new Set();
+    graph.forEachNode((node, attrs) => {
+      const parent = attrs.parent || attrs.label || node;
+      parents.add(parent);
+    });
+    return parents.size;
   }
 
   /**

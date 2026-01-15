@@ -23,7 +23,7 @@
 
 <!-- Developed for the CAMS2_3bis project -->
 ## Description
-Designed to help developers understand, analyze, and navigate complex software structures.
+A dynamic platform for analyzing and understanding complex codebases
 
 ## Author
 Joackim Orcière, HYGEOS
