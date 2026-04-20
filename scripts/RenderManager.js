@@ -62,7 +62,7 @@ class RenderManager {
     /** @type {{runningThickness:number, static:{autoScaleWithZoom:boolean, baseThickness:number, minThickness:number, maxThickness:number, referenceRatio:number, zoomExponent:number}}} */
     this.edgeStyleConfig = this.buildEdgeStyleConfig();
 
-    /** @type {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeOpacity:number, hideNonIncidentEdges:boolean, nonIncidentEdgeOpacity:number, nonIncidentEdgeColor:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string, incidentEdgeOpacity:number}} */
+    /** @type {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeColorDark:string, hideNonNeighborhoodLabels:boolean, hideNonIncidentEdges:boolean, nonIncidentEdgeColor:string, nonIncidentEdgeColorDark:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string}} */
     this.staticNeighborhoodConfig = this.buildStaticNeighborhoodConfig();
   }
 
@@ -137,25 +137,24 @@ class RenderManager {
   /**
    * Build static-hover neighborhood config from tuning values
    *
-   * @returns {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeOpacity:number, hideNonIncidentEdges:boolean, nonIncidentEdgeOpacity:number, nonIncidentEdgeColor:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string, incidentEdgeOpacity:number}}
+  * @returns {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeColorDark:string, hideNonNeighborhoodLabels:boolean, hideNonIncidentEdges:boolean, nonIncidentEdgeColor:string, nonIncidentEdgeColorDark:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string}}
    */
   buildStaticNeighborhoodConfig() {
     const tuning = window.GRAPH_RENDER_TUNING || {};
-    const edgeStyle = tuning.edgeStyle || {};
-    const cfg = edgeStyle.staticNeighborhood || {};
+    const cfg = tuning.neighborhoodStyle || {};
 
     return {
       enabled: cfg.enabled !== false,
       hideNonNeighborhoodNodes: cfg.hideNonNeighborhoodNodes === true,
       nonNeighborhoodNodeColor: this.toColor(cfg.nonNeighborhoodNodeColor, '#b8b8b8'),
-      nonNeighborhoodNodeOpacity: this.clamp(this.toNumber(cfg.nonNeighborhoodNodeOpacity, 0.18), 0, 1),
+      nonNeighborhoodNodeColorDark: this.toColor(cfg.nonNeighborhoodNodeColorDark, ''),
+      hideNonNeighborhoodLabels: cfg.hideNonNeighborhoodLabels === true,
       hideNonIncidentEdges: cfg.hideNonIncidentEdges !== false,
-      nonIncidentEdgeOpacity: this.clamp(this.toNumber(cfg.nonIncidentEdgeOpacity, 0.08), 0, 1),
       nonIncidentEdgeColor: this.toColor(cfg.nonIncidentEdgeColor, '#bdbdbd'),
+      nonIncidentEdgeColorDark: this.toColor(cfg.nonIncidentEdgeColorDark, ''),
       incomingEdgeColor: this.toColor(cfg.incomingEdgeColor, '#2f80ed'),
       outgoingEdgeColor: this.toColor(cfg.outgoingEdgeColor, '#f2994a'),
-      selfLoopEdgeColor: this.toColor(cfg.selfLoopEdgeColor, '#9b51e0'),
-      incidentEdgeOpacity: this.clamp(this.toNumber(cfg.incidentEdgeOpacity, 1), 0, 1)
+      selfLoopEdgeColor: this.toColor(cfg.selfLoopEdgeColor, '#9b51e0')
     };
   }
 
@@ -303,15 +302,20 @@ class RenderManager {
       if (this.staticNeighborhoodConfig.hideNonNeighborhoodNodes) {
         res.hidden = true;
       } else {
-        res.label = '';
-        res.color = this.staticNeighborhoodConfig.nonNeighborhoodNodeColor;
-        res.opacity = this.staticNeighborhoodConfig.nonNeighborhoodNodeOpacity;
+        const darkOverride = this.staticNeighborhoodConfig.nonNeighborhoodNodeColorDark;
+        res.color = this.isDarkMode && darkOverride
+          ? darkOverride
+          : this.staticNeighborhoodConfig.nonNeighborhoodNodeColor;
+
+        if (this.staticNeighborhoodConfig.hideNonNeighborhoodLabels) {
+          res.label = '';
+          res.forceLabel = false;
+        }
       }
       return res;
     }
 
     res.hidden = false;
-    res.opacity = 1;
 
     if (isHovered) {
       res.highlighted = true;
@@ -346,14 +350,15 @@ class RenderManager {
       if (this.staticNeighborhoodConfig.hideNonIncidentEdges) {
         res.hidden = true;
       } else {
-        res.opacity = this.staticNeighborhoodConfig.nonIncidentEdgeOpacity;
-        res.color = this.staticNeighborhoodConfig.nonIncidentEdgeColor;
+        const darkOverride = this.staticNeighborhoodConfig.nonIncidentEdgeColorDark;
+        res.color = this.isDarkMode && darkOverride
+          ? darkOverride
+          : this.staticNeighborhoodConfig.nonIncidentEdgeColor;
       }
       return res;
     }
 
     res.hidden = false;
-    res.opacity = this.staticNeighborhoodConfig.incidentEdgeOpacity;
 
     if (isOutgoing && isIncoming) {
       res.color = this.staticNeighborhoodConfig.selfLoopEdgeColor;

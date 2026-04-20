@@ -44,39 +44,44 @@ window.GRAPH_RENDER_TUNING = {
 
       // Clamp autoscaled thickness to stay readable.
       minThickness: 0.8,
-      maxThickness: 1.75,
+      maxThickness: 2,
 
       // Camera ratio at which baseThickness is applied.
       referenceRatio: 1.0,
 
       // Higher values make thickness grow faster while zooming in.
       zoomExponent: 0.65
-    },
-
-    // Static hover focus behavior (phase 2)
-    staticNeighborhood: {
-      // Enable reducer-based neighborhood focus on node hover when layout is static.
-      enabled: true,
-
-      // If false, non-neighborhood nodes remain visible but are dimmed/greyed.
-      hideNonNeighborhoodNodes: false,
-
-      // Visual style for non-neighborhood nodes when not hidden.
-      nonNeighborhoodNodeColor: "#b8b8b8",
-      nonNeighborhoodNodeOpacity: 0.18,
-
-      // Keep only incident edges to hovered node visible.
-      hideNonIncidentEdges: true,
-
-      // Visual style when non-incident edges are not hidden.
-      nonIncidentEdgeOpacity: 0.08,
-      nonIncidentEdgeColor: "#bdbdbd",
-
-      // Directional colors for edges relative to hovered node.
-      incomingEdgeColor: "#3c679f",
-      outgoingEdgeColor: "#6446a5",
-      selfLoopEdgeColor: "#b551e0",
-      incidentEdgeOpacity: 1.0
     }
+  },
+
+  // Static hover neighborhood focus behavior (phase 2)
+  neighborhoodStyle: {
+    // Enable reducer-based neighborhood focus on node hover when layout is static.
+    enabled: true,
+
+    // If false, non-neighborhood nodes remain visible but are dimmed/greyed.
+    hideNonNeighborhoodNodes: false,
+    // Hide labels for non-neighborhood nodes while hovering (static mode).
+    hideNonNeighborhoodLabels: true,
+    // Keep only incident edges to hovered node visible.
+    hideNonIncidentEdges: false,
+    
+    // Visual style for non-neighborhood nodes when not hidden.
+    nonNeighborhoodNodeColor: "#c9c9c9",
+    // Visual style when non-incident edges are not hidden.
+    nonIncidentEdgeColor: "#cccccc",
+    
+    // Optional dark-theme override for dimmed non-neighborhood node color.
+    nonNeighborhoodNodeColorDark: "#3d3f45",
+    // Optional dark-theme override for dimmed non-incident edge color.
+    nonIncidentEdgeColorDark: "#3d3f45",
+
+
+
+
+    // Directional colors for edges relative to hovered node.
+    incomingEdgeColor: "#3d74bc",
+    outgoingEdgeColor: "#d97426",
+    selfLoopEdgeColor: "#b551e0"
   }
 };
