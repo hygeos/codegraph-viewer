@@ -40,6 +40,12 @@ class RenderManager {
     
     /** @type {string|null} Currently hovered node for tooltip positioning */
     this.hoveredNode = null;
+
+    /** @type {Set<string>} Incoming neighbors of hovered node */
+    this.hoveredInNeighbors = new Set();
+
+    /** @type {Set<string>} Outgoing neighbors of hovered node */
+    this.hoveredOutNeighbors = new Set();
     
     /** @type {boolean} Current theme mode */
     this.isDarkMode = false;
@@ -50,8 +56,14 @@ class RenderManager {
     /** @type {boolean|null} Cached support status for arrow edge type */
     this.directionalEdgeTypeSupported = null;
 
+    /** @type {{runningScale:number, static:{autoScaleWithZoom:boolean, referenceRatio:number, zoomExponent:number, minScale:number, maxScale:number}}} */
+    this.nodeStyleConfig = this.buildNodeStyleConfig();
+
     /** @type {{runningThickness:number, static:{autoScaleWithZoom:boolean, baseThickness:number, minThickness:number, maxThickness:number, referenceRatio:number, zoomExponent:number}}} */
     this.edgeStyleConfig = this.buildEdgeStyleConfig();
+
+    /** @type {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeOpacity:number, hideNonIncidentEdges:boolean, nonIncidentEdgeOpacity:number, nonIncidentEdgeColor:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string, incidentEdgeOpacity:number}} */
+    this.staticNeighborhoodConfig = this.buildStaticNeighborhoodConfig();
   }
 
   /**
@@ -78,6 +90,28 @@ class RenderManager {
   }
 
   /**
+   * Build node-style config from global tuning values with safe defaults
+   *
+   * @returns {{runningScale:number, static:{autoScaleWithZoom:boolean, referenceRatio:number, zoomExponent:number, minScale:number, maxScale:number}}}
+   */
+  buildNodeStyleConfig() {
+    const tuning = window.GRAPH_RENDER_TUNING || {};
+    const nodeStyle = tuning.nodeStyle || {};
+    const staticCfg = nodeStyle.static || {};
+
+    return {
+      runningScale: this.toNumber(nodeStyle.runningScale, 1.0),
+      static: {
+        autoScaleWithZoom: staticCfg.autoScaleWithZoom !== false,
+        referenceRatio: this.toNumber(staticCfg.referenceRatio, 1.0),
+        zoomExponent: this.toNumber(staticCfg.zoomExponent, 0.45),
+        minScale: this.toNumber(staticCfg.minScale, 0.8),
+        maxScale: this.toNumber(staticCfg.maxScale, 2.4)
+      }
+    };
+  }
+
+  /**
    * Coerce a value to number with fallback
    *
    * @param {*} value - Value to parse
@@ -87,6 +121,42 @@ class RenderManager {
   toNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  /**
+   * Coerce a value to a non-empty color string with fallback
+   *
+   * @param {*} value - Candidate color string
+   * @param {string} fallback - Fallback color
+   * @returns {string}
+   */
+  toColor(value, fallback) {
+    return typeof value === 'string' && value.trim() ? value : fallback;
+  }
+
+  /**
+   * Build static-hover neighborhood config from tuning values
+   *
+   * @returns {{enabled:boolean, hideNonNeighborhoodNodes:boolean, nonNeighborhoodNodeColor:string, nonNeighborhoodNodeOpacity:number, hideNonIncidentEdges:boolean, nonIncidentEdgeOpacity:number, nonIncidentEdgeColor:string, incomingEdgeColor:string, outgoingEdgeColor:string, selfLoopEdgeColor:string, incidentEdgeOpacity:number}}
+   */
+  buildStaticNeighborhoodConfig() {
+    const tuning = window.GRAPH_RENDER_TUNING || {};
+    const edgeStyle = tuning.edgeStyle || {};
+    const cfg = edgeStyle.staticNeighborhood || {};
+
+    return {
+      enabled: cfg.enabled !== false,
+      hideNonNeighborhoodNodes: cfg.hideNonNeighborhoodNodes === true,
+      nonNeighborhoodNodeColor: this.toColor(cfg.nonNeighborhoodNodeColor, '#b8b8b8'),
+      nonNeighborhoodNodeOpacity: this.clamp(this.toNumber(cfg.nonNeighborhoodNodeOpacity, 0.18), 0, 1),
+      hideNonIncidentEdges: cfg.hideNonIncidentEdges !== false,
+      nonIncidentEdgeOpacity: this.clamp(this.toNumber(cfg.nonIncidentEdgeOpacity, 0.08), 0, 1),
+      nonIncidentEdgeColor: this.toColor(cfg.nonIncidentEdgeColor, '#bdbdbd'),
+      incomingEdgeColor: this.toColor(cfg.incomingEdgeColor, '#2f80ed'),
+      outgoingEdgeColor: this.toColor(cfg.outgoingEdgeColor, '#f2994a'),
+      selfLoopEdgeColor: this.toColor(cfg.selfLoopEdgeColor, '#9b51e0'),
+      incidentEdgeOpacity: this.clamp(this.toNumber(cfg.incidentEdgeOpacity, 1), 0, 1)
+    };
   }
 
   /**
@@ -126,6 +196,174 @@ class RenderManager {
     }
 
     return this.clamp(thickness, cfg.minThickness, cfg.maxThickness);
+  }
+
+  /**
+   * Compute node scale factor for current renderer state
+   *
+   * Static mode can autoscale by zoom, running mode uses a fixed multiplier.
+   *
+   * @returns {number}
+   */
+  computeNodeScaleFactor() {
+    if (!this.directionalEdgesEnabled) {
+      return this.nodeStyleConfig.runningScale;
+    }
+
+    const cfg = this.nodeStyleConfig.static;
+    let scale = 1.0;
+
+    if (cfg.autoScaleWithZoom) {
+      const ratio = this.state.camera ? this.state.camera.ratio : cfg.referenceRatio;
+      const safeRatio = Math.max(ratio, 0.001);
+      const safeReference = Math.max(cfg.referenceRatio, 0.001);
+      const zoomFactor = Math.pow(safeReference / safeRatio, cfg.zoomExponent);
+      scale *= zoomFactor;
+    }
+
+    return this.clamp(scale, cfg.minScale, cfg.maxScale);
+  }
+
+  /**
+   * Compute node size for reducer output
+   *
+   * @param {string} node - Node identifier
+   * @param {Object} data - Node display data
+   * @returns {number}
+   */
+  computeNodeSize(node, data) {
+    const attrs = this.state.getNodeAttributes(node);
+    const baseSize = this.toNumber((attrs && attrs.baseSize) || data.size, 4);
+    const scaleFactor = this.computeNodeScaleFactor();
+    return Math.max(0.1, baseSize * scaleFactor);
+  }
+
+  /**
+   * Whether static hover neighborhood reducers should be active
+   *
+   * @returns {boolean}
+   */
+  isStaticNeighborhoodActive() {
+    return this.directionalEdgesEnabled && this.staticNeighborhoodConfig.enabled && !!this.hoveredNode;
+  }
+
+  /**
+   * Update hovered node reducer state
+   *
+   * @param {string|undefined} nodeId - Hovered node identifier
+   * @param {boolean} shouldRefresh - Whether to refresh renderer
+   */
+  setHoveredNode(nodeId, shouldRefresh = true) {
+    const graph = this.state.graph;
+
+    if (!graph || !nodeId || !graph.hasNode(nodeId) || !this.directionalEdgesEnabled || !this.staticNeighborhoodConfig.enabled) {
+      this.hoveredNode = null;
+      this.hoveredInNeighbors.clear();
+      this.hoveredOutNeighbors.clear();
+      if (shouldRefresh) {
+        this.refresh({ skipIndexation: true });
+      }
+      return;
+    }
+
+    this.hoveredNode = nodeId;
+
+    const inNeighbors = typeof graph.inNeighbors === 'function' ? graph.inNeighbors(nodeId) : graph.neighbors(nodeId);
+    const outNeighbors = typeof graph.outNeighbors === 'function' ? graph.outNeighbors(nodeId) : graph.neighbors(nodeId);
+
+    this.hoveredInNeighbors = new Set(inNeighbors);
+    this.hoveredOutNeighbors = new Set(outNeighbors);
+
+    if (shouldRefresh) {
+      this.refresh({ skipIndexation: true });
+    }
+  }
+
+  /**
+   * Reducer for node display data
+   *
+   * @param {string} node - Node identifier
+   * @param {Object} data - Node display data
+   * @returns {Object}
+   */
+  reduceNodeAppearance(node, data) {
+    const res = { ...data };
+    res.size = this.computeNodeSize(node, data);
+
+    if (!this.isStaticNeighborhoodActive()) {
+      return res;
+    }
+
+    const isHovered = node === this.hoveredNode;
+    const isInNeighbor = this.hoveredInNeighbors.has(node);
+    const isOutNeighbor = this.hoveredOutNeighbors.has(node);
+    const inNeighborhood = isHovered || isInNeighbor || isOutNeighbor;
+
+    if (!inNeighborhood) {
+      if (this.staticNeighborhoodConfig.hideNonNeighborhoodNodes) {
+        res.hidden = true;
+      } else {
+        res.label = '';
+        res.color = this.staticNeighborhoodConfig.nonNeighborhoodNodeColor;
+        res.opacity = this.staticNeighborhoodConfig.nonNeighborhoodNodeOpacity;
+      }
+      return res;
+    }
+
+    res.hidden = false;
+    res.opacity = 1;
+
+    if (isHovered) {
+      res.highlighted = true;
+      res.forceLabel = true;
+    }
+
+    return res;
+  }
+
+  /**
+   * Reducer for edge display data
+   *
+   * @param {string} edge - Edge identifier
+   * @param {Object} data - Edge display data
+   * @returns {Object}
+   */
+  reduceEdgeAppearance(edge, data) {
+    const res = { ...data };
+    res.size = this.computeEdgeThickness();
+
+    if (!this.isStaticNeighborhoodActive() || !this.state.graph) {
+      return res;
+    }
+
+    const source = this.state.graph.source(edge);
+    const target = this.state.graph.target(edge);
+    const isOutgoing = source === this.hoveredNode;
+    const isIncoming = target === this.hoveredNode;
+    const isIncident = isOutgoing || isIncoming;
+
+    if (!isIncident) {
+      if (this.staticNeighborhoodConfig.hideNonIncidentEdges) {
+        res.hidden = true;
+      } else {
+        res.opacity = this.staticNeighborhoodConfig.nonIncidentEdgeOpacity;
+        res.color = this.staticNeighborhoodConfig.nonIncidentEdgeColor;
+      }
+      return res;
+    }
+
+    res.hidden = false;
+    res.opacity = this.staticNeighborhoodConfig.incidentEdgeOpacity;
+
+    if (isOutgoing && isIncoming) {
+      res.color = this.staticNeighborhoodConfig.selfLoopEdgeColor;
+    } else if (isOutgoing) {
+      res.color = this.staticNeighborhoodConfig.outgoingEdgeColor;
+    } else {
+      res.color = this.staticNeighborhoodConfig.incomingEdgeColor;
+    }
+
+    return res;
   }
 
   /**
@@ -266,11 +504,8 @@ class RenderManager {
           context.fillText(line.text, labelX + padding, labelY + padding + index * lineHeight);
         });
       },
-      edgeReducer: (edge, data) => {
-        const res = { ...data };
-        res.size = this.computeEdgeThickness();
-        return res;
-      },
+      nodeReducer: (node, data) => this.reduceNodeAppearance(node, data),
+      edgeReducer: (edge, data) => this.reduceEdgeAppearance(edge, data),
       // Label rendering settings
       renderLabels: true,
       labelRenderedSizeThreshold: 6,   // Only show labels when node is at least 6px on screen (higher = fewer labels when zoomed out)
@@ -294,6 +529,9 @@ class RenderManager {
    * @param {boolean} isLayoutRunning - Whether force layout is currently running
    */
   setLayoutRunning(isLayoutRunning) {
+    if (isLayoutRunning) {
+      this.setHoveredNode(undefined, false);
+    }
     this.directionalEdgesEnabled = !isLayoutRunning;
     this.applyDirectionalEdgeType();
   }
@@ -427,11 +665,13 @@ class RenderManager {
    */
   bindHoverEvents() {
     if (!this.state.renderer) return;
-    
-    // No longer need tooltip - all info is in the hovered label
-    // Just keep the camera update listener for potential future use
-    this.state.camera.on('updated', () => {
-      // Camera updates trigger re-render automatically
+
+    this.state.renderer.on('enterNode', ({ node }) => {
+      this.setHoveredNode(node);
+    });
+
+    this.state.renderer.on('leaveNode', () => {
+      this.setHoveredNode(undefined);
     });
   }
 
@@ -637,9 +877,9 @@ class RenderManager {
    * Call this after modifying node/edge attributes, adding/removing nodes,
    * or any other graph mutation.
    */
-  refresh() {
+  refresh(options) {
     if (this.state.renderer) {
-      this.state.renderer.refresh();
+      this.state.renderer.refresh(options);
     }
   }
 
