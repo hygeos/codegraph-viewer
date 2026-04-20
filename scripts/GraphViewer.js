@@ -144,6 +144,7 @@ class GraphViewer {
     
     // Setup Sigma renderer
     this.renderManager.setupSigma(this.themeManager.isDark());
+    this.renderManager.setLayoutRunning(this.layoutManager.layoutRunning);
     
     // Bind controls and hover events
     if (!this.isInitialized) {

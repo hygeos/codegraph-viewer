@@ -43,6 +43,89 @@ class RenderManager {
     
     /** @type {boolean} Current theme mode */
     this.isDarkMode = false;
+
+    /** @type {boolean} Whether to display directional arrow edges */
+    this.directionalEdgesEnabled = true;
+
+    /** @type {boolean|null} Cached support status for arrow edge type */
+    this.directionalEdgeTypeSupported = null;
+
+    /** @type {{runningThickness:number, static:{autoScaleWithZoom:boolean, baseThickness:number, minThickness:number, maxThickness:number, referenceRatio:number, zoomExponent:number}}} */
+    this.edgeStyleConfig = this.buildEdgeStyleConfig();
+  }
+
+  /**
+   * Build edge-style config from global tuning values with safe defaults
+   *
+   * @returns {{runningThickness:number, static:{autoScaleWithZoom:boolean, baseThickness:number, minThickness:number, maxThickness:number, referenceRatio:number, zoomExponent:number}}}
+   */
+  buildEdgeStyleConfig() {
+    const tuning = window.GRAPH_RENDER_TUNING || {};
+    const edgeStyle = tuning.edgeStyle || {};
+    const staticCfg = edgeStyle.static || {};
+
+    return {
+      runningThickness: this.toNumber(edgeStyle.runningThickness, 0.9),
+      static: {
+        autoScaleWithZoom: staticCfg.autoScaleWithZoom !== false,
+        baseThickness: this.toNumber(staticCfg.baseThickness, 1.8),
+        minThickness: this.toNumber(staticCfg.minThickness, 0.8),
+        maxThickness: this.toNumber(staticCfg.maxThickness, 7.0),
+        referenceRatio: this.toNumber(staticCfg.referenceRatio, 1.0),
+        zoomExponent: this.toNumber(staticCfg.zoomExponent, 0.65)
+      }
+    };
+  }
+
+  /**
+   * Coerce a value to number with fallback
+   *
+   * @param {*} value - Value to parse
+   * @param {number} fallback - Fallback value
+   * @returns {number}
+   */
+  toNumber(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  /**
+   * Clamp number in [min, max]
+   *
+   * @param {number} value - Candidate value
+   * @param {number} min - Minimum bound
+   * @param {number} max - Maximum bound
+   * @returns {number}
+   */
+  clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  /**
+   * Compute edge thickness for current renderer state
+   *
+   * Static mode supports zoom autoscaling from RenderTuning config.
+   * Running mode uses a fixed thin edge width for performance/readability.
+   *
+   * @returns {number}
+   */
+  computeEdgeThickness() {
+    if (!this.directionalEdgesEnabled) {
+      return this.edgeStyleConfig.runningThickness;
+    }
+
+    const cfg = this.edgeStyleConfig.static;
+    let thickness = cfg.baseThickness;
+
+    if (cfg.autoScaleWithZoom) {
+      const ratio = this.state.camera ? this.state.camera.ratio : cfg.referenceRatio;
+      const safeRatio = Math.max(ratio, 0.001);
+      const safeReference = Math.max(cfg.referenceRatio, 0.001);
+      const zoomFactor = Math.pow(safeReference / safeRatio, cfg.zoomExponent);
+      thickness *= zoomFactor;
+    }
+
+    return this.clamp(thickness, cfg.minThickness, cfg.maxThickness);
   }
 
   /**
@@ -73,6 +156,8 @@ class RenderManager {
       minCameraRatio: 0.06,
       maxCameraRatio: 3.5,
       defaultEdgeColor: edgeColor,
+      defaultEdgeType: "line",
+      minEdgeThickness: 0.1,
       labelColor: { color: labelColor },
       labelFont: "sans-serif",
       labelSize: 12,
@@ -181,6 +266,11 @@ class RenderManager {
           context.fillText(line.text, labelX + padding, labelY + padding + index * lineHeight);
         });
       },
+      edgeReducer: (edge, data) => {
+        const res = { ...data };
+        res.size = this.computeEdgeThickness();
+        return res;
+      },
       // Label rendering settings
       renderLabels: true,
       labelRenderedSizeThreshold: 6,   // Only show labels when node is at least 6px on screen (higher = fewer labels when zoomed out)
@@ -193,6 +283,52 @@ class RenderManager {
     
     // Adjust label density dynamically based on zoom level
     this.setupDynamicLabelDensity();
+
+    // Apply edge mode according to current layout state.
+    this.applyDirectionalEdgeType(false);
+  }
+
+  /**
+   * Update renderer edge mode based on layout running state
+   *
+   * @param {boolean} isLayoutRunning - Whether force layout is currently running
+   */
+  setLayoutRunning(isLayoutRunning) {
+    this.directionalEdgesEnabled = !isLayoutRunning;
+    this.applyDirectionalEdgeType();
+  }
+
+  /**
+   * Apply the current edge type setting to Sigma
+   *
+   * Falls back to line edges if arrow type is unavailable in the loaded Sigma build.
+   *
+   * @param {boolean} shouldRefresh - Whether to refresh the renderer after applying
+   */
+  applyDirectionalEdgeType(shouldRefresh = true) {
+    if (!this.state.renderer) return;
+
+    const wantsArrows = this.directionalEdgesEnabled;
+    const requestedType = wantsArrows && this.directionalEdgeTypeSupported !== false ? 'arrow' : 'line';
+
+    try {
+      this.state.renderer.setSetting('defaultEdgeType', requestedType);
+      if (requestedType === 'arrow') {
+        this.directionalEdgeTypeSupported = true;
+      }
+    } catch (error) {
+      if (requestedType === 'arrow') {
+        console.warn('Arrow edge type is not available in this Sigma build, falling back to line edges.', error);
+        this.directionalEdgeTypeSupported = false;
+        this.state.renderer.setSetting('defaultEdgeType', 'line');
+      } else {
+        throw error;
+      }
+    }
+
+    if (shouldRefresh) {
+      this.refresh();
+    }
   }
 
   /**

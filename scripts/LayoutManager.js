@@ -77,6 +77,7 @@ class LayoutManager {
       if (this.layoutRunning) {
         // Stop the running layout
         this.layoutRunning = false;
+        this.renderManager.setLayoutRunning(false);
       } else {
         // Start or continue layout
         const iterations = parseInt(maxIterationsInput.value) || 300;
@@ -100,6 +101,7 @@ class LayoutManager {
       
       // Stop the layout if running
       this.layoutRunning = false;
+      this.renderManager.setLayoutRunning(false);
       
       // Reset iteration counters
       this.completedIterations = 0;
@@ -307,6 +309,7 @@ class LayoutManager {
    */
   async applyForceLayout(requestedIterations = 100) {
     this.layoutRunning = true;
+    this.renderManager.setLayoutRunning(true);
     const startBtn = document.getElementById('start-layout');
     const counter = document.getElementById('iteration-counter');
     if (startBtn) startBtn.textContent = 'Stop';
@@ -372,6 +375,7 @@ class LayoutManager {
     }
     
     this.layoutRunning = false;
+    this.renderManager.setLayoutRunning(false);
   }
 
   /**
@@ -397,6 +401,7 @@ class LayoutManager {
    */
   reset() {
     this.layoutRunning = false;
+    this.renderManager.setLayoutRunning(false);
     this.completedIterations = 0;
     this.targetIterations = 0;
     this.updateUI('Ready (0/0)', 'Start');
